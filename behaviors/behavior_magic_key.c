@@ -120,7 +120,7 @@ static int magic_key_listener(const zmk_event_t *eh) {
     int32_t code = ev->keycode;
 
     /* Shift history */
-    for (int i = MAGIC_KEY_HISTORY_LEN - 1; i > 0; i--) {
+    for (int i = MAX_HISTORY - 1; i > 0; i--) {
         history[i] = history[i - 1];
     }
 
