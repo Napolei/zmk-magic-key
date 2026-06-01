@@ -24,25 +24,25 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #define MAGIC_KEY_HISTORY_LEN 16
 
-struct magic_key_history_entry {
-    int32_t code;
-    int64_t timestamp;
-};
+#define MAGIC_KEY_MAX_PATTERN_LEN 8
+#define MAGIC_KEY_MAX_RULES 16
+
 
 static struct magic_key_history_entry
     history[MAGIC_KEY_HISTORY_LEN];
 
 struct magic_key_rule {
-    const int32_t *pattern;
-    size_t pattern_len;
+    uint32_t pattern[MAGIC_KEY_MAX_PATTERN_LEN];
+    uint8_t pattern_len;
+
     struct zmk_behavior_binding binding;
 };
 
-struct behavior_magic_key_config {
+struct magic_key_config {
     uint32_t max_delay_ms;
 
     const struct magic_key_rule *rules;
-    size_t rules_len;
+    uint8_t rules_len;
 };
 
 struct behavior_magic_key_data {
@@ -217,11 +217,11 @@ static int behavior_magic_key_init(
     ), \
 }
 
-#define MAGIC_KEY_RULE(child) \
-{ \
-    .pattern = DT_PROP(child, pattern), \
-    .pattern_len = DT_PROP_LEN(child, pattern), \
-    .binding = MAGIC_KEY_EXTRACT_BINDING(0, child), \
+#define MAGIC_KEY_RULE(child)                                              \
+{                                                                          \
+    .pattern = DT_PROP(child, pattern),                                    \
+    .pattern_len = DT_PROP_LEN(child, pattern),                            \
+    .binding = ZMK_KEYMAP_EXTRACT_BINDING(child, bindings),                \
 },
 
 #define MAGIC_KEY_RULE_LIST(n) \
@@ -235,32 +235,29 @@ static int behavior_magic_key_init(
 #define MAGIC_KEY_RULE_COUNT(n) \
     DT_CHILD_NUM(DT_DRV_INST(n))
 
-#define MAGIC_KEY_INST(n) \
-    static const struct magic_key_rule \
-        magic_key_rules_##n[] = \
-            MAGIC_KEY_RULE_LIST(n); \
-\
-    static const struct behavior_magic_key_config \
-        behavior_magic_key_config_##n = { \
-            .max_delay_ms = \
-                DT_INST_PROP(n, max_delay_ms), \
-            .rules = magic_key_rules_##n, \
-            .rules_len = MAGIC_KEY_RULE_COUNT(n), \
-    }; \
-\
-    static struct behavior_magic_key_data \
-        behavior_magic_key_data_##n = {}; \
-\
-    BEHAVIOR_DT_INST_DEFINE( \
-        n, \
-        behavior_magic_key_init, \
-        NULL, \
-        &behavior_magic_key_data_##n, \
-        &behavior_magic_key_config_##n, \
-        POST_KERNEL, \
-        CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, \
-        &behavior_magic_key_driver_api \
-    );
+#define MAGIC_KEY_RULES(node_id)                                           \
+    static const struct magic_key_rule                                     \
+        magic_key_rules_##node_id[] = {                                    \
+            DT_FOREACH_CHILD(node_id, MAGIC_KEY_RULE)                      \
+    };
+
+#define MAGIC_KEY_INST(n)                                                  \
+    MAGIC_KEY_RULES(DT_DRV_INST(n))                                        \
+                                                                            \
+    static const struct magic_key_config magic_key_config_##n = {           \
+        .max_delay_ms = DT_INST_PROP(n, max_delay_ms),                     \
+        .rules = magic_key_rules_##DT_DRV_INST(n),                         \
+        .rules_len = ARRAY_SIZE(magic_key_rules_##DT_DRV_INST(n)),         \
+    };                                                                     \
+                                                                            \
+    BEHAVIOR_DT_INST_DEFINE(n,                                             \
+        NULL,                                                              \
+        NULL,                                                              \
+        NULL,                                                              \
+        &magic_key_config_##n,                                             \
+        POST_KERNEL,                                                       \
+        CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                               \
+        &magic_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
 
