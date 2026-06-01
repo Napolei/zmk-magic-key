@@ -27,6 +27,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define MAGIC_KEY_MAX_PATTERN_LEN 8
 #define MAGIC_KEY_MAX_RULES 16
 
+struct magic_key_history_entry {
+    uint32_t position;
+    int64_t timestamp;
+};
 
 static struct magic_key_history_entry
     history[MAGIC_KEY_HISTORY_LEN];
