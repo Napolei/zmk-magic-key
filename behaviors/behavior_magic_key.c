@@ -57,11 +57,7 @@ static size_t history_len;
 static int32_t encode_keycode(
     struct zmk_keycode_state_changed *ev
 ) {
-    return (
-        ((ev->implicit_modifiers & 0xff) << 24) |
-        ((ev->usage_page & 0xff) << 16) |
-        (ev->keycode & 0xffff)
-    );
+    return ev->keycode;
 }
 
 static void push_history(
