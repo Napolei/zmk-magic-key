@@ -43,12 +43,12 @@ struct behavior_magic_key_config {
     uint32_t max_delay_ms;
 };
 
-static struct magic_key_history_entry
-    history[MAGIC_KEY_HISTORY_LEN];
-
 struct behavior_magic_key_data {
     struct zmk_behavior_binding pressed_binding;
 };
+
+static struct magic_key_history_entry
+    history[MAGIC_KEY_HISTORY_LEN];
 
 static int magic_key_listener(const zmk_event_t *eh);
 
@@ -73,20 +73,18 @@ static int magic_key_listener(const zmk_event_t *eh) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /* Only record key presses */
+    /* Only record presses */
     if (!ev->state) {
         return ZMK_EV_EVENT_BUBBLE;
     }
-
-    int32_t code = ev->keycode;
 
     /* Shift history */
     for (int i = MAGIC_KEY_HISTORY_LEN - 1; i > 0; i--) {
         history[i] = history[i - 1];
     }
 
-    /* Insert newest key */
-    history[0].code = code;
+    /* Insert newest */
+    history[0].code = ev->keycode;
     history[0].timestamp = ev->timestamp;
 
     return ZMK_EV_EVENT_BUBBLE;
@@ -123,13 +121,17 @@ static int on_magic_key_binding_pressed(
     const struct device *dev =
         zmk_behavior_get_binding(binding->behavior_dev);
 
+    if (dev == NULL) {
+        return -EINVAL;
+    }
+
     const struct behavior_magic_key_config *cfg =
         dev->config;
 
     struct behavior_magic_key_data *data =
         dev->data;
 
-    if (data->pressed_binding != NULL) {
+    if (data->pressed_binding.behavior_dev != NULL) {
         return -ENOTSUP;
     }
 
@@ -143,10 +145,10 @@ static int on_magic_key_binding_pressed(
                 event.timestamp
             )) {
 
-            data->pressed_binding = &rule->binding;
+            data->pressed_binding = rule->binding;
 
             return behavior_keymap_binding_pressed(
-                data->pressed_binding,
+                &data->pressed_binding,
                 event
             );
         }
@@ -162,22 +164,25 @@ static int on_magic_key_binding_released(
     const struct device *dev =
         zmk_behavior_get_binding(binding->behavior_dev);
 
+    if (dev == NULL) {
+        return -EINVAL;
+    }
+
     struct behavior_magic_key_data *data =
         dev->data;
 
-    if (data->pressed_binding == NULL) {
+    if (data->pressed_binding.behavior_dev == NULL) {
         return -ENOTSUP;
     }
 
-    const struct zmk_behavior_binding *pressed =
-        data->pressed_binding;
-
-    data->pressed_binding = NULL;
-
-    return behavior_keymap_binding_released(
-        (struct zmk_behavior_binding *)pressed,
+    int ret = behavior_keymap_binding_released(
+        &data->pressed_binding,
         event
     );
+
+    data->pressed_binding.behavior_dev = NULL;
+
+    return ret;
 }
 
 static const struct behavior_driver_api
@@ -194,54 +199,68 @@ static int behavior_magic_key_init(
     ARG_UNUSED(dev);
 
     for (int i = 0; i < MAGIC_KEY_HISTORY_LEN; i++) {
-        history[i].code = -1;
+        history[i].code = UINT32_MAX;
         history[i].timestamp = 0;
     }
 
     return 0;
 }
 
-#define MAGIC_KEY_EXTRACT_BINDING(idx, node) \
-{ \
-    .behavior_dev = DEVICE_DT_NAME( \
-        DT_PHANDLE_BY_IDX(node, bindings, idx) \
-    ), \
-    .param1 = COND_CODE_0( \
-        DT_PHA_HAS_CELL_AT_IDX(node, bindings, idx, param1), \
-        (0), \
-        (DT_PHA_BY_IDX(node, bindings, idx, param1)) \
-    ), \
-    .param2 = COND_CODE_0( \
-        DT_PHA_HAS_CELL_AT_IDX(node, bindings, idx, param2), \
-        (0), \
-        (DT_PHA_BY_IDX(node, bindings, idx, param2)) \
-    ), \
-}
-
-#define MAGIC_KEY_RULE(node_id)                                      \
-    {                                                                \
-        .binding = {                                                 \
-            .behavior_dev = DEVICE_DT_NAME(                          \
-                DT_PHANDLE_BY_IDX(node_id, bindings, 0)),            \
-            .param1 = DT_PHA_BY_IDX(node_id, bindings, 0, param1),   \
-            .param2 = DT_PHA_BY_IDX(node_id, bindings, 0, param2),   \
-        },                                                           \
-    },
-
-#define MAGIC_KEY_RULES(node_id)                                      \
-    {                                                                  \
-        DT_FOREACH_CHILD(node_id, MAGIC_KEY_RULE)                      \
+#define MAGIC_KEY_RULE(node_id)                                       \
+    {                                                                 \
+        .binding = {                                                  \
+            .behavior_dev = DEVICE_DT_NAME(                           \
+                DT_PHANDLE_BY_IDX(node_id, bindings, 0)               \
+            ),                                                        \
+            .param1 = COND_CODE_1(                                    \
+                DT_PHA_HAS_CELL_AT_IDX(node_id, bindings, 0, param1), \
+                (DT_PHA_BY_IDX(node_id, bindings, 0, param1)),        \
+                (0)                                                   \
+            ),                                                        \
+            .param2 = COND_CODE_1(                                    \
+                DT_PHA_HAS_CELL_AT_IDX(node_id, bindings, 0, param2), \
+                (DT_PHA_BY_IDX(node_id, bindings, 0, param2)),        \
+                (0)                                                   \
+            ),                                                        \
+        },                                                            \
     }
 
-#define MAGIC_KEY_INST(n)                                              \
-    static struct magic_key_rule                                       \
-        magic_key_rules_##n[] = MAGIC_KEY_RULES(DT_DRV_INST(n));       \
-                                                                         \
-    static struct behavior_magic_key_config                             \
-        magic_key_config_##n = {                                        \
-            .rules = magic_key_rules_##n,                               \
-            .rules_len = ARRAY_SIZE(magic_key_rules_##n),               \
-            .max_delay_ms = DT_INST_PROP(n, max_delay_ms),              \
-    };
+#define MAGIC_KEY_RULES(node_id)                                      \
+    {                                                                 \
+        DT_FOREACH_CHILD(node_id, MAGIC_KEY_RULE)                     \
+    }
+
+#define MAGIC_KEY_INST(n)                                             \
+    static struct magic_key_rule                                      \
+        magic_key_rules_##n[] = MAGIC_KEY_RULES(DT_DRV_INST(n));      \
+                                                                        \
+    static struct behavior_magic_key_data                             \
+        magic_key_data_##n = {                                        \
+            .pressed_binding = {                                      \
+                .behavior_dev = NULL,                                 \
+                .param1 = 0,                                          \
+                .param2 = 0,                                          \
+            },                                                        \
+    };                                                                \
+                                                                        \
+    static struct behavior_magic_key_config                           \
+        magic_key_config_##n = {                                      \
+            .rules = magic_key_rules_##n,                             \
+            .rules_len = ARRAY_SIZE(magic_key_rules_##n),             \
+            .max_delay_ms = DT_INST_PROP(n, max_delay_ms),            \
+    };                                                                \
+                                                                        \
+    DEVICE_DT_INST_DEFINE(                                            \
+        n,                                                            \
+        behavior_magic_key_init,                                      \
+        NULL,                                                         \
+        &magic_key_data_##n,                                          \
+        &magic_key_config_##n,                                        \
+        POST_KERNEL,                                                  \
+        CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                          \
+        &behavior_magic_key_driver_api                                \
+    );
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
+
+#endif
