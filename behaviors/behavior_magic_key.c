@@ -95,32 +95,38 @@ ZMK_SUBSCRIPTION(
 );
 
 static int magic_key_listener(const zmk_event_t *eh) {
-
     struct zmk_keycode_state_changed *ev =
         as_zmk_keycode_state_changed(eh);
 
-    if (!ev) {
+    if (ev == NULL) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    /* Only track keyboard HID usages */
+    if (ev->usage_page != HID_USAGE_KEY) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    /* Ignore modifiers */
+    if (ev->keycode >= 0xE0 && ev->keycode <= 0xE7) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    /* Only record key presses */
     if (!ev->state) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /*
-     * Ignore modifiers.
-     */
+    int32_t code = ev->keycode;
 
-    if (ev->keycode >= 0xe0 &&
-        ev->keycode <= 0xff) {
-
-        return ZMK_EV_EVENT_BUBBLE;
+    /* Shift history */
+    for (int i = MAGIC_KEY_HISTORY_LEN - 1; i > 0; i--) {
+        history[i] = history[i - 1];
     }
 
-    push_history(
-        encode_keycode(ev),
-        ev->timestamp
-    );
+    /* Insert newest key */
+    history[0].code = code;
+    history[0].timestamp = ev->timestamp;
 
     return ZMK_EV_EVENT_BUBBLE;
 }
