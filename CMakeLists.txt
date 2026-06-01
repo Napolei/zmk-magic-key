@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.20.0)
-
-find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-
-project(zmk-magic-key)
+if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+  target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_ANTECEDENT_MORPH app PRIVATE behaviors/behavior_magic_key.c)
+endif()
