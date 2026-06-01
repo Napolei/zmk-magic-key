@@ -30,9 +30,6 @@ struct magic_key_history_entry {
     int64_t timestamp;
 };
 
-static struct magic_key_history_entry
-    history[MAGIC_KEY_HISTORY_LEN];
-
 struct magic_key_rule {
     uint32_t pattern[MAGIC_KEY_MAX_PATTERN_LEN];
     uint8_t pattern_len;
@@ -40,12 +37,14 @@ struct magic_key_rule {
     struct zmk_behavior_binding binding;
 };
 
-struct magic_key_config {
-    uint32_t max_delay_ms;
-
+struct behavior_magic_key_config {
     const struct magic_key_rule *rules;
-    uint8_t rules_len;
+    size_t rules_len;
+    uint32_t max_delay_ms;
 };
+
+static struct magic_key_history_entry
+    history[MAGIC_KEY_HISTORY_LEN];
 
 struct behavior_magic_key_data {
     const struct zmk_behavior_binding *pressed_binding;
