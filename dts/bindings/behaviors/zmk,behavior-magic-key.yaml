@@ -1,3 +1,5 @@
+description: Magic Key Behavior
+
 compatible: "zmk,behavior-magic-key"
 
 include: zero_param.yaml
