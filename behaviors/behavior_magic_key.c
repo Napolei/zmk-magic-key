@@ -23,12 +23,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
 
 #define MAGIC_KEY_HISTORY_LEN 16
-
 #define MAGIC_KEY_MAX_PATTERN_LEN 8
-#define MAGIC_KEY_MAX_RULES 16
 
 struct magic_key_history_entry {
-    uint32_t position;
+    uint32_t code;
     int64_t timestamp;
 };
 
