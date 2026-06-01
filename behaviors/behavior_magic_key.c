@@ -287,12 +287,12 @@ static int behavior_magic_key_init(
     ), \
 }
 
-#define MAGIC_KEY_RULE(n, child) \
+#define MAGIC_KEY_RULE(child) \
 { \
     .pattern = DT_PROP(child, pattern), \
     .pattern_len = DT_PROP_LEN(child, pattern), \
     .binding = MAGIC_KEY_EXTRACT_BINDING(0, child), \
-}
+},
 
 #define MAGIC_KEY_RULE_LIST(n) \
 { \
