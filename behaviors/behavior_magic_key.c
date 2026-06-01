@@ -47,7 +47,7 @@ static struct magic_key_history_entry
     history[MAGIC_KEY_HISTORY_LEN];
 
 struct behavior_magic_key_data {
-    const struct zmk_behavior_binding *pressed_binding;
+    struct zmk_behavior_binding pressed_binding;
 };
 
 static int magic_key_listener(const zmk_event_t *eh);
@@ -218,11 +218,14 @@ static int behavior_magic_key_init(
     ), \
 }
 
-#define MAGIC_KEY_RULE(child)                                         \
-    {                                                                 \
-        .pattern = DT_PROP(child, pattern),                           \
-        .pattern_len = DT_PROP_LEN(child, pattern),                   \
-        .binding = ZMK_KEYMAP_EXTRACT_BINDING(0, bindings),           \
+#define MAGIC_KEY_RULE(node_id)                                      \
+    {                                                                \
+        .binding = {                                                 \
+            .behavior_dev = DEVICE_DT_NAME(                          \
+                DT_PHANDLE_BY_IDX(node_id, bindings, 0)),            \
+            .param1 = DT_PHA_BY_IDX(node_id, bindings, 0, param1),   \
+            .param2 = DT_PHA_BY_IDX(node_id, bindings, 0, param2),   \
+        },                                                           \
     },
 
 #define MAGIC_KEY_RULES(node_id)                                      \
