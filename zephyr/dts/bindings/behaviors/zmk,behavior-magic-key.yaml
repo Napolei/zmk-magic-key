@@ -1,0 +1,18 @@
+compatible: "zmk,behavior-magic-key"
+
+include: zero_param.yaml
+
+properties:
+  max-delay-ms:
+    type: int
+    default: 500
+
+child-binding:
+  properties:
+    pattern:
+      type: array
+      required: true
+
+    bindings:
+      type: phandle-array
+      required: true
