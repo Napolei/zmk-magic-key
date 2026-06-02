@@ -1,20 +1,62 @@
-description: Magic Key Behavior
+# Copyright (c) 2024
+# SPDX-License-Identifier: MIT
+
+description: |
+  Magic key (antecedent-morph) behavior.
+
+  Emits a different binding depending on the sequence of keys pressed
+  immediately before the magic key. The longest matching antecedent
+  sequence wins. If no sequence matches (or the delay has expired),
+  the final entry in `bindings` is used as the default.
+
+  Antecedent sequences are encoded as a flat array with a length prefix
+  per entry:
+
+    antecedent-keycodes = <
+        3  T H E          /* sequence of length 3 */
+        2  T H            /* sequence of length 2 */
+        1  A              /* sequence of length 1 */
+    >;
+
+  `bindings` must contain exactly (antecedent-count + 1) entries.
+  The first `antecedent-count` entries are the morphs (parallel to the
+  antecedent sequences); the last entry is the default binding.
 
 compatible: "zmk,behavior-magic-key"
 
-include: zero_param.yaml
+include: behavior.yaml
 
 properties:
+  antecedent-keycodes:
+    type: array
+    required: true
+    description: >
+      Flat array encoding all antecedent sequences. Each sequence is
+      prefixed by its length: [len, k0, k1, ..., len, k0, ...].
+      Keycodes must be ZMK key-position–independent HID usage-page
+      values (the same values used in &kp).
+
+  antecedent-count:
+    type: int
+    required: true
+    description: >
+      Number of antecedent sequences (and therefore the number of morph
+      bindings). Must equal the number of length-prefixed sequences in
+      antecedent-keycodes.
+
+  bindings:
+    type: phandle-array
+    required: true
+    description: >
+      Array of (antecedent-count + 1) bindings. Entries 0..N-1 are the
+      morph outputs for the corresponding antecedent sequence. Entry N
+      is the default binding emitted when nothing matches.
+
   max-delay-ms:
     type: int
-    default: 500
-
-child-binding:
-  properties:
-    pattern:
-      type: array
-      required: true
-
-    bindings:
-      type: phandle-array
-      required: true
+    default: 0
+    description: >
+      Maximum time in milliseconds between the last typed key and the
+      magic key press for antecedent matching to be active. A value of
+      0 (default) disables the timeout and always attempts a match
+      regardless of timing.

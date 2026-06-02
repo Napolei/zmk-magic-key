@@ -1,7 +1,16 @@
 /*
- * Copyright (c) 2026
- *
+ * Copyright (c) 2024
  * SPDX-License-Identifier: MIT
+ *
+ * behavior_magic_key.c
+ *
+ * Antecedent-morph ("magic key") behavior for ZMK.
+ *
+ * Emits a different binding based on the sequence of keys typed
+ * immediately before the magic key is pressed. Longest match wins.
+ * Falls back to a default binding when nothing matches.
+ *
+ * Devicetree binding: zmk,behavior-magic-key
  */
 
 #define DT_DRV_COMPAT zmk_behavior_magic_key
@@ -11,7 +20,6 @@
 #include <zephyr/logging/log.h>
 
 #include <drivers/behavior.h>
-
 #include <zmk/behavior.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/keycode_state_changed.h>
@@ -20,247 +28,337 @@
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
-#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+/* -------------------------------------------------------------------------
+ * Constants
+ * ---------------------------------------------------------------------- */
 
-#define MAGIC_KEY_HISTORY_LEN 16
-#define MAGIC_KEY_MAX_PATTERN_LEN 8
+/*
+ * Maximum number of recent keycodes retained in the ring buffer.
+ * Must be >= the longest antecedent sequence you intend to use.
+ * Increasing this costs only (HISTORY_SIZE * 4) bytes of RAM per instance.
+ */
+#define MAGIC_KEY_HISTORY_SIZE 8
 
-struct magic_key_history_entry {
-    uint32_t code;
-    int64_t timestamp;
+/* -------------------------------------------------------------------------
+ * Data structures
+ * ---------------------------------------------------------------------- */
+
+struct magic_key_antecedent {
+    const uint32_t *keycodes; /* sequence to match, index 0 = oldest */
+    uint8_t         length;
 };
 
-struct magic_key_rule {
-    uint32_t pattern[MAGIC_KEY_MAX_PATTERN_LEN];
-    uint8_t pattern_len;
-
-    struct zmk_behavior_binding binding;
+struct magic_key_config {
+    int32_t  max_delay_ms;
+    uint8_t  antecedent_count;
+    const struct magic_key_antecedent    *antecedents;
+    const struct zmk_behavior_binding    *morphs;   /* [antecedent_count] */
+    const struct zmk_behavior_binding     defaults;
 };
 
-struct behavior_magic_key_config {
-    struct magic_key_rule *rules;
-    size_t rules_len;
-    uint32_t max_delay_ms;
+struct magic_key_data {
+    /* Ring buffer of recent keycodes (key-up events, excluding magic key) */
+    uint32_t history[MAGIC_KEY_HISTORY_SIZE];
+    uint8_t  head;   /* next write position */
+    uint8_t  count;  /* number of valid entries, capped at MAGIC_KEY_HISTORY_SIZE */
+
+    /* Uptime of the last history push (used for max-delay-ms) */
+    int64_t last_press_time;
+
+    /*
+     * Key position of the magic key itself, recorded on binding_pressed.
+     * Used to exclude the magic key from the history ring buffer.
+     */
+    uint32_t magic_key_position;
+
+    /*
+     * Set to true while the resolved binding is being invoked, so that
+     * synthetic key events from macros are not pushed into history.
+     */
+    bool firing;
+
+    /*
+     * Index of the binding resolved on press, reused on release so that
+     * both events always use the same binding even if history changes.
+     */
+    int resolved_index; /* -1 = default */
 };
 
-struct behavior_magic_key_data {
-    struct zmk_behavior_binding pressed_binding;
-};
+/* -------------------------------------------------------------------------
+ * Ring buffer helpers
+ * ---------------------------------------------------------------------- */
 
-static struct magic_key_history_entry
-    history[MAGIC_KEY_HISTORY_LEN];
+static void history_push(struct magic_key_data *data, uint32_t keycode)
+{
+    data->history[data->head] = keycode;
+    data->head = (data->head + 1) % MAGIC_KEY_HISTORY_SIZE;
+    if (data->count < MAGIC_KEY_HISTORY_SIZE) {
+        data->count++;
+    }
+    data->last_press_time = k_uptime_get();
+}
 
-static int magic_key_listener(const zmk_event_t *eh);
+/*
+ * Copy the most-recent `len` keycodes into `out`, oldest first.
+ * Returns false if fewer than `len` keycodes have been recorded.
+ */
+static bool history_read(const struct magic_key_data *data,
+                         uint8_t len, uint32_t *out)
+{
+    if (len == 0 || len > data->count) {
+        return false;
+    }
 
-ZMK_LISTENER(behavior_magic_key, magic_key_listener);
-ZMK_SUBSCRIPTION(behavior_magic_key, zmk_keycode_state_changed);
+    /* Index of the oldest entry in the window */
+    int start = ((int)data->head - (int)len + MAGIC_KEY_HISTORY_SIZE)
+                % MAGIC_KEY_HISTORY_SIZE;
 
-static int magic_key_listener(const zmk_event_t *eh) {
-    struct zmk_keycode_state_changed *ev =
-        as_zmk_keycode_state_changed(eh);
+    for (uint8_t i = 0; i < len; i++) {
+        out[i] = data->history[(start + i) % MAGIC_KEY_HISTORY_SIZE];
+    }
+    return true;
+}
 
-    if (ev == NULL) {
+/* -------------------------------------------------------------------------
+ * Matching
+ * ---------------------------------------------------------------------- */
+
+/*
+ * Walk all antecedent sequences and return the index of the longest one
+ * that matches the tail of the history buffer, or -1 if none match.
+ *
+ * Longest-match wins: a rule for [t, h, e] beats [t, h] when all three
+ * are present, allowing prefix-free and non-prefix-free rules to coexist.
+ */
+static int find_match(const struct magic_key_config *cfg,
+                      struct magic_key_data *data,
+                      int64_t now)
+{
+    if (cfg->max_delay_ms > 0 &&
+        (now - data->last_press_time) > cfg->max_delay_ms) {
+        LOG_DBG("magic_key: antecedent timeout, using default");
+        return -1;
+    }
+
+    int     best_index = -1;
+    uint8_t best_len   = 0;
+    uint32_t window[MAGIC_KEY_HISTORY_SIZE];
+
+    for (int i = 0; i < cfg->antecedent_count; i++) {
+        const struct magic_key_antecedent *ant = &cfg->antecedents[i];
+
+        if (ant->length <= best_len) {
+            /* Can't improve on current best, skip */
+            continue;
+        }
+
+        if (!history_read(data, ant->length, window)) {
+            /* Not enough history for this sequence */
+            continue;
+        }
+
+        if (memcmp(window, ant->keycodes,
+                   ant->length * sizeof(uint32_t)) == 0) {
+            best_index = i;
+            best_len   = ant->length;
+            LOG_DBG("magic_key: matched antecedent[%d] (len %d)", i, ant->length);
+        }
+    }
+
+    return best_index;
+}
+
+/* -------------------------------------------------------------------------
+ * Keycode event listener
+ *
+ * Listens for key-up events and pushes them into the history ring buffer
+ * of every magic-key instance, skipping:
+ *   - the magic key's own position
+ *   - synthetic events fired while a morph binding is executing
+ * ---------------------------------------------------------------------- */
+
+static int magic_key_keycode_listener(const zmk_event_t *ev)
+{
+    const struct zmk_keycode_state_changed *ksc =
+        as_zmk_keycode_state_changed(ev);
+
+    /* Only track key-up events */
+    if (!ksc || ksc->state) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /* Only track keyboard HID usages */
-    if (ev->usage_page != HID_USAGE_KEY) {
-        return ZMK_EV_EVENT_BUBBLE;
+    /* Update history for every active magic-key device instance */
+    STRUCT_SECTION_FOREACH(magic_key_data, data) {
+        if (data->firing) {
+            LOG_DBG("magic_key: skipping synthetic keycode 0x%08x", ksc->keycode);
+            continue;
+        }
+        if (ksc->position == data->magic_key_position) {
+            LOG_DBG("magic_key: skipping own key position %d", ksc->position);
+            continue;
+        }
+        history_push(data, ksc->keycode);
+        LOG_DBG("magic_key: history push keycode 0x%08x (count=%d)",
+                ksc->keycode, data->count);
     }
-
-    /* Ignore modifiers */
-    if (ev->keycode >= 0xE0 && ev->keycode <= 0xE7) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    /* Only record presses */
-    if (!ev->state) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    /* Shift history */
-    for (int i = MAGIC_KEY_HISTORY_LEN - 1; i > 0; i--) {
-        history[i] = history[i - 1];
-    }
-
-    /* Insert newest */
-    history[0].code = ev->keycode;
-    history[0].timestamp = ev->timestamp;
 
     return ZMK_EV_EVENT_BUBBLE;
 }
 
-static bool rule_matches(
-    const struct magic_key_rule *rule,
-    uint32_t max_delay_ms,
-    int64_t now
-) {
-    if (rule->pattern_len > MAGIC_KEY_HISTORY_LEN) {
-        return false;
-    }
+ZMK_LISTENER(magic_key, magic_key_keycode_listener);
+ZMK_SUBSCRIPTION(magic_key, zmk_keycode_state_changed);
 
-    for (size_t i = 0; i < rule->pattern_len; i++) {
-        struct magic_key_history_entry h = history[i];
+/* -------------------------------------------------------------------------
+ * Behavior callbacks
+ * ---------------------------------------------------------------------- */
 
-        if (h.code != rule->pattern[i]) {
-            return false;
-        }
+static int magic_key_binding_pressed(struct zmk_behavior_binding *binding,
+                                     struct zmk_behavior_binding_event event)
+{
+    const struct device *dev = device_get_binding(binding->behavior_dev);
+    const struct magic_key_config *cfg = dev->config;
+    struct magic_key_data         *data = dev->data;
 
-        if ((now - h.timestamp) > max_delay_ms) {
-            return false;
-        }
-    }
+    /* Record our own position so the listener can filter us out */
+    data->magic_key_position = event.position;
 
-    return true;
-}
+    /* Resolve and cache the binding index for use by binding_released */
+    data->resolved_index = find_match(cfg, data, k_uptime_get());
 
-static int on_magic_key_binding_pressed(
-    struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event
-) {
-    const struct device *dev =
-        zmk_behavior_get_binding(binding->behavior_dev);
+    const struct zmk_behavior_binding *chosen =
+        (data->resolved_index >= 0)
+            ? &cfg->morphs[data->resolved_index]
+            : &cfg->defaults;
 
-    if (dev == NULL) {
-        return -EINVAL;
-    }
+    LOG_DBG("magic_key: press, resolved_index=%d", data->resolved_index);
 
-    const struct behavior_magic_key_config *cfg =
-        dev->config;
-
-    struct behavior_magic_key_data *data =
-        dev->data;
-
-    if (data->pressed_binding.behavior_dev != NULL) {
-        return -ENOTSUP;
-    }
-
-    for (size_t i = 0; i < cfg->rules_len; i++) {
-        const struct magic_key_rule *rule =
-            &cfg->rules[i];
-
-        if (rule_matches(
-                rule,
-                cfg->max_delay_ms,
-                event.timestamp
-            )) {
-
-            data->pressed_binding = rule->binding;
-
-            return behavior_keymap_binding_pressed(
-                &data->pressed_binding,
-                event
-            );
-        }
-    }
-
-    return 0;
-}
-
-static int on_magic_key_binding_released(
-    struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event
-) {
-    const struct device *dev =
-        zmk_behavior_get_binding(binding->behavior_dev);
-
-    if (dev == NULL) {
-        return -EINVAL;
-    }
-
-    struct behavior_magic_key_data *data =
-        dev->data;
-
-    if (data->pressed_binding.behavior_dev == NULL) {
-        return -ENOTSUP;
-    }
-
-    int ret = behavior_keymap_binding_released(
-        &data->pressed_binding,
-        event
-    );
-
-    data->pressed_binding.behavior_dev = NULL;
+    data->firing = true;
+    int ret = zmk_behavior_invoke_binding(chosen, event, true);
+    data->firing = false;
 
     return ret;
 }
 
-static const struct behavior_driver_api
-    behavior_magic_key_driver_api = {
-        .binding_pressed =
-            on_magic_key_binding_pressed,
-        .binding_released =
-            on_magic_key_binding_released,
+static int magic_key_binding_released(struct zmk_behavior_binding *binding,
+                                      struct zmk_behavior_binding_event event)
+{
+    const struct device *dev = device_get_binding(binding->behavior_dev);
+    const struct magic_key_config *cfg = dev->config;
+    struct magic_key_data         *data = dev->data;
+
+    /* Reuse the index resolved on press — history must not change between */
+    const struct zmk_behavior_binding *chosen =
+        (data->resolved_index >= 0)
+            ? &cfg->morphs[data->resolved_index]
+            : &cfg->defaults;
+
+    LOG_DBG("magic_key: release, resolved_index=%d", data->resolved_index);
+
+    data->firing = true;
+    int ret = zmk_behavior_invoke_binding(chosen, event, false);
+    data->firing = false;
+
+    return ret;
+}
+
+static const struct behavior_driver_api magic_key_driver_api = {
+    .binding_pressed  = magic_key_binding_pressed,
+    .binding_released = magic_key_binding_released,
 };
 
-static int behavior_magic_key_init(
-    const struct device *dev
-) {
+/* -------------------------------------------------------------------------
+ * Devicetree instantiation
+ *
+ * antecedent-keycodes is a flat array with a length prefix per sequence:
+ *
+ *   antecedent-keycodes = <
+ *       3  T H E
+ *       2  T H
+ *       1  A
+ *   >;
+ *
+ * The macro below walks this array at compile time (via Zephyr's DT
+ * initialiser helpers) to build the per-instance antecedent structs.
+ * ---------------------------------------------------------------------- */
+
+static int magic_key_init(const struct device *dev)
+{
     ARG_UNUSED(dev);
-
-    for (int i = 0; i < MAGIC_KEY_HISTORY_LEN; i++) {
-        history[i].code = UINT32_MAX;
-        history[i].timestamp = 0;
-    }
-
     return 0;
 }
 
-#define MAGIC_KEY_RULE(node_id)                                       \
-    {                                                                 \
-        .binding = {                                                  \
-            .behavior_dev = DEVICE_DT_NAME(                           \
-                DT_PHANDLE_BY_IDX(node_id, bindings, 0)               \
-            ),                                                        \
-            .param1 = COND_CODE_1(                                    \
-                DT_PHA_HAS_CELL_AT_IDX(node_id, bindings, 0, param1), \
-                (DT_PHA_BY_IDX(node_id, bindings, 0, param1)),        \
-                (0)                                                   \
-            ),                                                        \
-            .param2 = COND_CODE_1(                                    \
-                DT_PHA_HAS_CELL_AT_IDX(node_id, bindings, 0, param2), \
-                (DT_PHA_BY_IDX(node_id, bindings, 0, param2)),        \
-                (0)                                                   \
-            ),                                                        \
-        },                                                            \
-    }
+/*
+ * For each DT instance, expand the flat antecedent-keycodes array into:
+ *   - a single flat uint32_t array holding all keycode values
+ *   - an array of magic_key_antecedent structs that point into it
+ *
+ * The flat array is walked with a running offset: the first element of
+ * each entry is its length, followed by that many keycodes.
+ */
+#define MAGIC_KEY_ANTECEDENT_TOTAL_KEYCODES(n) \
+    (DT_INST_PROP_LEN(n, antecedent_keycodes) - DT_INST_PROP(n, antecedent_count))
 
-#define MAGIC_KEY_RULES(node_id)                                      \
-    {                                                                 \
-        DT_FOREACH_CHILD(node_id, MAGIC_KEY_RULE)                     \
-    }
-
-#define MAGIC_KEY_INST(n)                                             \
-    static struct magic_key_rule                                      \
-        magic_key_rules_##n[] = MAGIC_KEY_RULES(DT_DRV_INST(n));      \
-                                                                        \
-    static struct behavior_magic_key_data                             \
-        magic_key_data_##n = {                                        \
-            .pressed_binding = {                                      \
-                .behavior_dev = NULL,                                 \
-                .param1 = 0,                                          \
-                .param2 = 0,                                          \
-            },                                                        \
-    };                                                                \
-                                                                        \
-    static struct behavior_magic_key_config                           \
-        magic_key_config_##n = {                                      \
-            .rules = magic_key_rules_##n,                             \
-            .rules_len = ARRAY_SIZE(magic_key_rules_##n),             \
-            .max_delay_ms = DT_INST_PROP(n, max_delay_ms),            \
-    };                                                                \
-                                                                        \
-    DEVICE_DT_INST_DEFINE(                                            \
-        n,                                                            \
-        behavior_magic_key_init,                                      \
-        NULL,                                                         \
-        &magic_key_data_##n,                                          \
-        &magic_key_config_##n,                                        \
-        POST_KERNEL,                                                  \
-        CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                          \
-        &behavior_magic_key_driver_api                                \
-    );
+/*
+ * Build the flat keycode storage and antecedent struct array.
+ *
+ * Because Zephyr's DT macros don't provide a clean way to walk a
+ * length-prefixed flat array at macro-expansion time, we store the
+ * entire raw array (lengths + keycodes) and parse it at init time via
+ * a one-off helper instead of a heavy X-macro chain.
+ */
+#define MAGIC_KEY_INST(n)                                                      \
+                                                                               \
+    /* Raw flat array including length prefixes */                             \
+    static const uint32_t mk_raw_##n[] =                                       \
+        DT_INST_PROP(n, antecedent_keycodes);                                  \
+                                                                               \
+    /* Per-entry antecedent structs — populated by magic_key_init_##n */       \
+    static struct magic_key_antecedent mk_antecedents_##n                      \
+        [DT_INST_PROP(n, antecedent_count)];                                   \
+                                                                               \
+    /* Morph bindings (first antecedent_count entries of `bindings`) */        \
+    static const struct zmk_behavior_binding mk_morphs_##n[]  = {              \
+        LISTIFY(DT_INST_PROP(n, antecedent_count),                             \
+                ZMK_KEYMAP_EXTRACT_BINDING, (,), n, bindings)                  \
+    };                                                                         \
+                                                                               \
+    /* Parse the raw array into antecedent structs at device init */           \
+    static int magic_key_init_##n(const struct device *dev)                    \
+    {                                                                          \
+        ARG_UNUSED(dev);                                                       \
+        uint8_t count = DT_INST_PROP(n, antecedent_count);                     \
+        const uint32_t *p = mk_raw_##n;                                        \
+        for (uint8_t i = 0; i < count; i++) {                                  \
+            uint32_t len = *p++;                                               \
+            mk_antecedents_##n[i].length   = (uint8_t)len;                     \
+            mk_antecedents_##n[i].keycodes = p;                                \
+            p += len;                                                          \
+        }                                                                      \
+        return 0;                                                              \
+    }                                                                          \
+                                                                               \
+    static const struct magic_key_config mk_cfg_##n = {                        \
+        .max_delay_ms     = DT_INST_PROP(n, max_delay_ms),                     \
+        .antecedent_count = DT_INST_PROP(n, antecedent_count),                 \
+        .antecedents      = mk_antecedents_##n,                                \
+        .morphs           = mk_morphs_##n,                                     \
+        .defaults         = ZMK_KEYMAP_EXTRACT_BINDING(                        \
+                                n, bindings,                                   \
+                                DT_INST_PROP(n, antecedent_count)),            \
+    };                                                                         \
+                                                                               \
+    static struct magic_key_data mk_data_##n = {                               \
+        .head              = 0,                                                \
+        .count             = 0,                                                \
+        .last_press_time   = 0,                                                \
+        .magic_key_position = UINT32_MAX,                                      \
+        .firing            = false,                                            \
+        .resolved_index    = -1,                                               \
+    };                                                                         \
+                                                                               \
+    DEVICE_DT_INST_DEFINE(n, magic_key_init_##n, NULL,                         \
+        &mk_data_##n, &mk_cfg_##n,                                             \
+        APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                      \
+        &magic_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
-
-#endif
