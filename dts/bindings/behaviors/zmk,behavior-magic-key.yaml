@@ -24,7 +24,7 @@ description: |
 
 compatible: "zmk,behavior-magic-key"
 
-include: behavior.yaml
+#include: behavior.yaml
 
 properties:
   antecedent-keycodes:
