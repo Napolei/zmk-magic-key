@@ -9,14 +9,15 @@ description: |
   sequence wins. If no sequence matches (or the delay has expired),
   the final entry in `bindings` is used as the default.
 
-  Antecedent sequences are encoded as a flat array with a length prefix
-  per entry:
+  Antecedent sequences are encoded as a flat array. Each sequence is
+  prefixed by its length, followed by that many (usage_page, keycode)
+  pairs. This matches the ZMK keycode macro format from keys.h, where
+  each macro encodes both the HID usage page and usage ID.
 
-    antecedent-keycodes = <
-        3  T H E          /* sequence of length 3 */
-        2  T H            /* sequence of length 2 */
-        1  A              /* sequence of length 1 */
-    >;
+  Example using keys.h macros (each macro is a 32-bit value encoding
+  page + usage):
+
+    antecedent-keycodes = <3 T H E  2 T H  3 I O N>;
 
   `bindings` must contain exactly (antecedent-count + 1) entries.
   The first `antecedent-count` entries are the morphs (parallel to the
@@ -24,7 +25,7 @@ description: |
 
 compatible: "zmk,behavior-magic-key"
 
-#include: behavior.yaml
+include: behavior.yaml
 
 properties:
   antecedent-keycodes:
@@ -32,9 +33,10 @@ properties:
     required: true
     description: >
       Flat array encoding all antecedent sequences. Each sequence is
-      prefixed by its length: [len, k0, k1, ..., len, k0, ...].
-      Keycodes must be ZMK key-position–independent HID usage-page
-      values (the same values used in &kp).
+      prefixed by its length: <len k0 k1 ... len k0 ...>.
+      Key values should be ZMK keycode macros from dt-bindings/zmk/keys.h
+      (e.g. T, H, E, SPACE). Each macro encodes the HID usage page and
+      usage ID into a single 32-bit integer.
 
   antecedent-count:
     type: int
