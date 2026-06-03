@@ -164,6 +164,20 @@ static int find_match(const struct magic_key_config *cfg,
                       struct magic_key_data *data,
                       int64_t now)
 {
+    LOG_DBG("magic_key find_match: count=%d last_press=%lld now=%lld",
+            data->count, data->last_press_time, now);
+    for (int i = 0; i < data->count; i++) {
+        int idx = ((int)data->head - (int)data->count + i
+                   + MAGIC_KEY_HISTORY_SIZE) % MAGIC_KEY_HISTORY_SIZE;
+        LOG_DBG("  history[%d] = 0x%08x", i, data->history[idx]);
+    }
+    for (int i = 0; i < cfg->antecedent_count; i++) {
+        LOG_DBG("  antecedent[%d] len=%d keycodes[0]=0x%08x",
+                i, cfg->antecedents[i].length,
+                cfg->antecedents[i].length > 0
+                    ? cfg->antecedents[i].keycodes[0] : 0);
+    }
+
     if (cfg->max_delay_ms > 0 &&
         (now - data->last_press_time) > cfg->max_delay_ms) {
         LOG_DBG("magic_key: timeout, using default");
@@ -203,6 +217,15 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
     const struct zmk_keycode_state_changed *ksc =
         as_zmk_keycode_state_changed(ev);
 
+    // Log every event that reaches the listener at all
+    if (ksc) {
+        LOG_DBG("magic_key listener: state=%d page=0x%02x keycode=0x%04x pos=%d",
+                ksc->state, ksc->usage_page, ksc->keycode, ksc->position);
+    } else {
+        LOG_DBG("magic_key listener: not a keycode event");
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     /* Track key-up events only */
     if (!ksc || ksc->state) {
         return ZMK_EV_EVENT_BUBBLE;
@@ -236,6 +259,7 @@ ZMK_SUBSCRIPTION(magic_key, zmk_keycode_state_changed);
 static int magic_key_binding_pressed(struct zmk_behavior_binding *binding,
                                      struct zmk_behavior_binding_event event)
 {
+    LOG_DBG("magic_key binding_pressed: position=%d", event.position);
     const struct device *dev = device_get_binding(binding->behavior_dev);
     const struct magic_key_config *cfg  = dev->config;
     struct magic_key_data         *data = dev->data;
