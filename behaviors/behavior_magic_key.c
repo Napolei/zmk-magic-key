@@ -346,7 +346,8 @@ static int magic_key_init(const struct device *dev)
                                 DT_INST_PROP(n, antecedent_count)),            \
     };                                                                         \
                                                                                \
-    static struct magic_key_data mk_data_##n = {                               \
+
+    STRUCT_SECTION_ITERABLE(magic_key_data, mk_data_##n) = {                   \
         .head               = 0,                                               \
         .count              = 0,                                               \
         .last_press_time    = 0,                                               \
