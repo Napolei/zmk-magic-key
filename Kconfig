@@ -1,3 +1,5 @@
 menuconfig ZMK_MAGIC_KEY
     bool "ZMK Magic Key"
     default y
+
+CONFIG_ZMK_USB_LOGGING=y
