@@ -28,6 +28,10 @@ compatible: "zmk,behavior-magic-key"
 #include: behavior.yaml
 
 properties:
+  label:
+    type: string
+    required: true
+
   antecedent-keycodes:
     type: array
     required: true
