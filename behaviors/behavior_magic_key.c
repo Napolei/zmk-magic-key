@@ -380,9 +380,9 @@ static int magic_key_init(const struct device *dev)
         .resolved_index     = -1,                                              \
     };                                                                         \
                                                                                \
-    DEVICE_DT_INST_DEFINE(n, magic_key_init_##n, NULL,                        \
-        &mk_data_##n, &mk_cfg_##n,                                             \
-        APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                      \
+    BEHAVIOR_DT_INST_DEFINE(n, magic_key_init_##n, NULL,        \
+        &mk_data_##n, &mk_cfg_##n,                               \
+        APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,        \
         &magic_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
