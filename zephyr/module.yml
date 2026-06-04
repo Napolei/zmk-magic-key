@@ -1,6 +1,5 @@
 build:
   cmake: .
   kconfig: Kconfig
-dts:
-  bindings:
-    - dts/bindings
+  settings:
+    dts_root: .
