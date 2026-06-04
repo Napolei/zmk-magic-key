@@ -29,10 +29,6 @@ compatible: "zmk,behavior-magic-key"
 include: zero_param.yaml
 
 properties:
-  label:
-    type: string
-    required: true
-
   antecedent-keycodes:
     type: array
     required: true
