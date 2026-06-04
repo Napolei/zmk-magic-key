@@ -25,7 +25,8 @@ description: |
 
 compatible: "zmk,behavior-magic-key"
 
-include: behaviors/behavior.yaml
+#include: behaviors/behavior.yaml
+include: zero_param.yaml
 
 properties:
   label:
