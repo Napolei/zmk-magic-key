@@ -1,0 +1,6 @@
+if ZMK_MAGIC_KEY
+
+config ZMK_MAGIC_KEY
+    default y
+
+endif
