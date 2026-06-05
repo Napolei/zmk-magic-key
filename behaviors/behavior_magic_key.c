@@ -142,9 +142,9 @@ static int magic_key_keycode_listener(const zmk_event_t *ev) {
         if (!mk_data_##n.firing) {                \
             history_push(&mk_data_##n, encoded);  \
         }                                         \
-    } while (0)
+    } while (0);
 
-    DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH)
+DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH)
 
 #undef MAGIC_KEY_PUSH
 
