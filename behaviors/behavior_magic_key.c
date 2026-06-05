@@ -61,8 +61,6 @@ struct magic_key_data {
     int      resolved_index;
 };
 
-static struct magic_key_data *all_magic_keys[];
-
 /* -------------------------------------------------------------------------
  * Ring buffer helpers
  * ---------------------------------------------------------------------- */
@@ -157,15 +155,6 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
     }
 
     uint32_t encoded = encoded_from_event(ksc);
-
-    for (int i = 0; i < ARRAY_SIZE(all_magic_keys); i++) {
-        struct magic_key_data *data = all_magic_keys[i];
-
-        if (data->firing) {
-            continue;
-        }
-        history_push(data, encoded);
-    }
 
     return ZMK_EV_EVENT_BUBBLE;
 }
@@ -298,10 +287,13 @@ static int magic_key_init(const struct device *dev)
         APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                      \
         &magic_key_driver_api);
 
+#define MAGIC_KEY_PUSH(n)                          \
+    do {                                           \
+        if (!mk_data_##n.firing) {                 \
+            history_push(&mk_data_##n, encoded);   \
+        }                                          \
+    } while (0);
+
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
 
 #define MAGIC_KEY_DATA_REF(n) &mk_data_##n,
-
-static struct magic_key_data *all_magic_keys[] = {
-    DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_DATA_REF)
-};
