@@ -327,6 +327,9 @@ static int magic_key_init(const struct device *dev)
     return 0;
 }
 
+#define MAGIC_KEY_DATA_DEFINE(n) \
+    STRUCT_SECTION_ITERABLE(magic_key_data, mk_data_##n)
+
 #define MAGIC_KEY_INST(n)                                                      \
                                                                                \
     /* Raw flat DT array: [len, k0..kN, len, k0..kN, ...] */                  \
@@ -367,7 +370,15 @@ static int magic_key_init(const struct device *dev)
                                 DT_INST_PROP(n, antecedent_count)),            \
     };                                                                         \
                                                                                \
-
+    MAGIC_KEY_DATA_DEFINE(n) = {                                               \
+        .head               = 0,                                               \
+        .count              = 0,                                               \
+        .last_press_time    = 0,                                               \
+        .magic_key_position = UINT32_MAX,                                      \
+        .firing             = false,                                            \
+        .resolved_index     = -1,                                              \
+    };                                                                         \
+                                                                               \
     STRUCT_SECTION_ITERABLE(magic_key_data, mk_data_##n) = {                   \
         .head               = 0,                                               \
         .count              = 0,                                               \
