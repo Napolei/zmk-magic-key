@@ -61,6 +61,8 @@ struct magic_key_data {
     int      resolved_index;
 };
 
+static struct magic_key_data *all_magic_keys[];
+
 /* -------------------------------------------------------------------------
  * Ring buffer helpers
  * ---------------------------------------------------------------------- */
@@ -234,10 +236,6 @@ static int magic_key_init(const struct device *dev)
     return 0;
 }
 
-static struct magic_key_data *all_magic_keys[] = {
-    &mk_data_0,
-};
-
 /*
  * STRUCT_SECTION_ITERABLE cannot be used directly inside a macro with ##n
  * token pasting because the ## is evaluated before macro expansion.
@@ -301,3 +299,9 @@ static struct magic_key_data *all_magic_keys[] = {
         &magic_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
+
+#define MAGIC_KEY_DATA_REF(n) &mk_data_##n,
+
+static struct magic_key_data *all_magic_keys[] = {
+    DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_DATA_REF)
+};
