@@ -18,6 +18,7 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/iterable_sections.h>
 
 #include <drivers/behavior.h>
 #include <zmk/behavior.h>
@@ -155,7 +156,7 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
 
     uint32_t encoded = encoded_from_event(ksc);
 
-    STRUCT_SECTION_FOREACH(magic_key_data, data) {
+    STRUCT_SECTION_FOREACH(struct magic_key_data, data) {
         if (data->firing) {
             LOG_DBG("magic_key: skip synthetic 0x%08x", encoded);
             continue;
@@ -239,7 +240,7 @@ static int magic_key_init(const struct device *dev)
  * This helper indirection forces n to be substituted first.
  */
 #define MAGIC_KEY_DATA_DEFINE(n) \
-    STRUCT_SECTION_ITERABLE(magic_key_data, mk_data_##n)
+    STRUCT_SECTION_ITERABLE(struct magic_key_data, mk_data_##n)
 
 #define MAGIC_KEY_INST(n)                                                      \
                                                                                \
