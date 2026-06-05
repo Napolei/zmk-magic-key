@@ -219,8 +219,8 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
 
     // Log every event that reaches the listener at all
     if (ksc) {
-        LOG_DBG("magic_key listener: state=%d page=0x%02x keycode=0x%04x pos=%d",
-                ksc->state, ksc->usage_page, ksc->keycode, ksc->position);
+        LOG_DBG("magic_key listener: state=%d page=0x%02x keycode=0x%04x",
+                ksc->state, ksc->usage_page, ksc->keycode);
     } else {
         LOG_DBG("magic_key listener: not a keycode event");
         return ZMK_EV_EVENT_BUBBLE;
@@ -238,10 +238,7 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
             LOG_DBG("magic_key: skip synthetic 0x%08x", encoded);
             continue;
         }
-        if (ksc->position == data->magic_key_position) {
-            LOG_DBG("magic_key: skip own position %d", ksc->position);
-            continue;
-        }
+        // position filter removed — not available on keycode event
         history_push(data, encoded);
         LOG_DBG("magic_key: push 0x%08x count=%d", encoded, data->count);
     }
