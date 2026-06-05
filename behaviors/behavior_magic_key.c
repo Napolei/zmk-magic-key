@@ -18,7 +18,6 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/sys/iterable_sections.h>
 
 #include <drivers/behavior.h>
 #include <zmk/behavior.h>
@@ -156,6 +155,17 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
 
     uint32_t encoded = encoded_from_event(ksc);
 
+#define MAGIC_KEY_PUSH(n)                          \
+    do {                                           \
+        if (!mk_data_##n.firing) {                 \
+            history_push(&mk_data_##n, encoded);   \
+        }                                          \
+    } while (0)
+
+    DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH);
+
+#undef MAGIC_KEY_PUSH
+
     return ZMK_EV_EVENT_BUBBLE;
 }
 
@@ -225,11 +235,9 @@ static int magic_key_init(const struct device *dev)
     return 0;
 }
 
-/*
- * STRUCT_SECTION_ITERABLE cannot be used directly inside a macro with ##n
- * token pasting because the ## is evaluated before macro expansion.
- * This helper indirection forces n to be substituted first.
- */
+/* -------------------------------------------------------------------------
+ * Devicetree instantiation
+ * ---------------------------------------------------------------------- */
 
 #define MAGIC_KEY_INST(n)                                                      \
                                                                                \
@@ -237,44 +245,8 @@ static int magic_key_init(const struct device *dev)
     static const uint32_t mk_raw_##n[] =                                       \
         DT_INST_PROP(n, antecedent_keycodes);                                  \
                                                                                \
-    /* Antecedent structs populated at init by walking mk_raw_##n */           \
-    static struct magic_key_antecedent                                         \
-        mk_antecedents_##n[DT_INST_PROP(n, antecedent_count)];                 \
-                                                                               \
-    /* Morph bindings — one per antecedent */                                  \
-    static const struct zmk_behavior_binding mk_morphs_##n[] = {               \
-        LISTIFY(DT_INST_PROP(n, antecedent_count),                             \
-                ZMK_KEYMAP_EXTRACT_BINDING, (,), DT_DRV_INST(n))              \
-    };                                                                         \
-                                                                               \
-    /* Default binding — last entry in bindings */                             \
-    static const struct zmk_behavior_binding mk_default_##n =                 \
-        ZMK_KEYMAP_EXTRACT_BINDING(                                            \
-            DT_INST_PROP(n, antecedent_count), DT_DRV_INST(n));               \
-                                                                               \
-    static int magic_key_init_##n(const struct device *dev)                    \
-    {                                                                          \
-        ARG_UNUSED(dev);                                                       \
-        const uint32_t count = DT_INST_PROP(n, antecedent_count);             \
-        const uint32_t *p = mk_raw_##n;                                        \
-        for (uint32_t i = 0; i < count; i++) {                                \
-            uint32_t len = *p++;                                               \
-            mk_antecedents_##n[i].length   = (uint8_t)len;                    \
-            mk_antecedents_##n[i].keycodes = p;                               \
-            p += len;                                                          \
-        }                                                                      \
-        return 0;                                                              \
-    }                                                                          \
-                                                                               \
-    static const struct magic_key_config mk_cfg_##n = {                        \
-        .max_delay_ms     = DT_INST_PROP(n, max_delay_ms),                    \
-        .antecedent_count = DT_INST_PROP(n, antecedent_count),               \
-        .antecedents      = mk_antecedents_##n,                               \
-        .morphs           = mk_morphs_##n,                                    \
-        .defaults         = mk_default_##n,                                   \
-    };                                                                         \
-                                                                               \
-    MAGIC_KEY_DATA_DEFINE(n) = {                                               \
+    /* Per-instance runtime data */                                            \
+    static struct magic_key_data mk_data_##n = {                               \
         .head            = 0,                                                  \
         .count           = 0,                                                  \
         .last_press_time = 0,                                                  \
@@ -282,18 +254,56 @@ static int magic_key_init(const struct device *dev)
         .resolved_index  = -1,                                                 \
     };                                                                         \
                                                                                \
-    BEHAVIOR_DT_INST_DEFINE(n, magic_key_init_##n, NULL,                      \
-        &mk_data_##n, &mk_cfg_##n,                                             \
-        APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                      \
-        &magic_key_driver_api);
-
-#define MAGIC_KEY_PUSH(n)                          \
-    do {                                           \
-        if (!mk_data_##n.firing) {                 \
-            history_push(&mk_data_##n, encoded);   \
-        }                                          \
-    } while (0);
+    /* Antecedent structs populated at init */                                 \
+    static struct magic_key_antecedent                                         \
+        mk_antecedents_##n[DT_INST_PROP(n, antecedent_count)];                 \
+                                                                               \
+    /* Morph bindings */                                                       \
+    static const struct zmk_behavior_binding mk_morphs_##n[] = {               \
+        LISTIFY(DT_INST_PROP(n, antecedent_count),                             \
+                ZMK_KEYMAP_EXTRACT_BINDING, (,), DT_DRV_INST(n))               \
+    };                                                                         \
+                                                                               \
+    /* Default binding */                                                      \
+    static const struct zmk_behavior_binding mk_default_##n =                  \
+        ZMK_KEYMAP_EXTRACT_BINDING(                                            \
+            DT_INST_PROP(n, antecedent_count),                                 \
+            DT_DRV_INST(n));                                                   \
+                                                                               \
+    static int magic_key_init_##n(const struct device *dev)                    \
+    {                                                                          \
+        ARG_UNUSED(dev);                                                       \
+                                                                               \
+        const uint32_t count = DT_INST_PROP(n, antecedent_count);              \
+        const uint32_t *p = mk_raw_##n;                                        \
+                                                                               \
+        for (uint32_t i = 0; i < count; i++) {                                 \
+            uint32_t len = *p++;                                               \
+            mk_antecedents_##n[i].length   = (uint8_t)len;                     \
+            mk_antecedents_##n[i].keycodes = p;                                \
+            p += len;                                                           \
+        }                                                                      \
+                                                                               \
+        return 0;                                                              \
+    }                                                                          \
+                                                                               \
+    static const struct magic_key_config mk_cfg_##n = {                        \
+        .max_delay_ms     = DT_INST_PROP(n, max_delay_ms),                     \
+        .antecedent_count = DT_INST_PROP(n, antecedent_count),                 \
+        .antecedents      = mk_antecedents_##n,                                \
+        .morphs           = mk_morphs_##n,                                     \
+        .defaults         = mk_default_##n,                                    \
+    };                                                                         \
+                                                                               \
+    BEHAVIOR_DT_INST_DEFINE(                                                   \
+        n,                                                                     \
+        magic_key_init_##n,                                                    \
+        NULL,                                                                  \
+        &mk_data_##n,                                                          \
+        &mk_cfg_##n,                                                           \
+        APPLICATION,                                                           \
+        CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                                   \
+        &magic_key_driver_api                                                  \
+    )
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
-
-#define MAGIC_KEY_DATA_REF(n) &mk_data_##n,
