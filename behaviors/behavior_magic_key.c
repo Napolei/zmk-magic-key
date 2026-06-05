@@ -156,13 +156,13 @@ static int magic_key_keycode_listener(const zmk_event_t *ev)
 
     uint32_t encoded = encoded_from_event(ksc);
 
-    STRUCT_SECTION_FOREACH(magic_key_data, data) {
+    for (int i = 0; i < ARRAY_SIZE(all_magic_keys); i++) {
+        struct magic_key_data *data = all_magic_keys[i];
+
         if (data->firing) {
-            LOG_DBG("magic_key: skip synthetic 0x%08x", encoded);
             continue;
         }
         history_push(data, encoded);
-        LOG_DBG("magic_key: push 0x%08x count=%d", encoded, data->count);
     }
 
     return ZMK_EV_EVENT_BUBBLE;
@@ -234,13 +234,15 @@ static int magic_key_init(const struct device *dev)
     return 0;
 }
 
+static struct magic_key_data *all_magic_keys[] = {
+    &mk_data_0,
+};
+
 /*
  * STRUCT_SECTION_ITERABLE cannot be used directly inside a macro with ##n
  * token pasting because the ## is evaluated before macro expansion.
  * This helper indirection forces n to be substituted first.
  */
-#define MAGIC_KEY_DATA_DEFINE(n) \
-    STRUCT_SECTION_ITERABLE(magic_key_data, mk_data_##n)
 
 #define MAGIC_KEY_INST(n)                                                      \
                                                                                \
