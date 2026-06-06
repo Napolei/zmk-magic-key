@@ -290,7 +290,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
             DT_FOREACH_PROP_ELEM(                                        \
                 node_id,                                                 \
                 bindings,                                                \
-                ZMK_KEYMAP_EXTRACT_BINDING                               \
+                MAGIC_KEY_BINDING_ENTRY                               \
             )                                                            \
     };
 
@@ -302,6 +302,9 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .binding_len = ARRAY_SIZE(mk_bindings_##node_id),                \
     },
 
+#define MAGIC_KEY_BINDING_ENTRY(idx, node_id) \
+    [idx] = ZMK_KEYMAP_EXTRACT_BINDING(node_id, bindings)
+
 #define MAGIC_KEY_INST(n)                                                \
                                                                          \
     DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                      \
@@ -311,7 +314,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
             DT_FOREACH_PROP_ELEM(                                        \
                 DT_DRV_INST(n),                                          \
                 bindings,                                                \
-                ZMK_KEYMAP_EXTRACT_BINDING                               \
+                MAGIC_KEY_BINDING_ENTRY                               \
             )                                                            \
     };                                                                   \
                                                                          \
