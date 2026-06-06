@@ -318,7 +318,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .sequences = mk_sequences_##n,                                   \
         .sequence_count = ARRAY_SIZE(mk_sequences_##n),                  \
         .fallback_bindings = mk_fallback_bindings_##n,                   \
-        .fallback_binding_len = ARRAY_SIZE(mk_fallback_bindings_##n),    \
+        .fallback_binding_len = ARRAY_SIZE(mk_fallback_bindings_##n)     \
     };                                                                   \
                                                                          \
     static struct magic_key_data mk_data_##n = {                         \
