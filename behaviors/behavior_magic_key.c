@@ -307,10 +307,10 @@ static const struct behavior_driver_api magic_key_driver_api = {
     DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                      \
                                                                          \
     static const struct zmk_behavior_binding                             \
-        mk_default_output_bindings_##n[] = {                                   \
+        mk_default_output_bindings_##n[] = {                             \
             DT_FOREACH_PROP_ELEM(                                        \
                 DT_DRV_INST(n),                                          \
-                default_output_bindings,                                       \
+                bindings,                                                \
                 ZMK_KEYMAP_EXTRACT_BINDING                               \
             )                                                            \
     };                                                                   \
