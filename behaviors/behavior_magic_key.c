@@ -250,11 +250,12 @@ static const struct behavior_driver_api magic_key_driver_api = {
                                                                             \
         for (uint32_t i = 0; i < count; i++) {                              \
             uint32_t len = *p++;                                            \
+                                                                            \
             mk_antecedents_##n[i].length = (uint8_t)len;                    \
             mk_antecedents_##n[i].keycodes = p;                             \
+                                                                            \
             p += len;                                                       \
         }                                                                   \
-                                                                            \
         return 0;                                                           \
     }                                                                       \
                                                                             \
