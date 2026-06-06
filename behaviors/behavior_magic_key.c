@@ -344,5 +344,3 @@ static const struct behavior_driver_api magic_key_driver_api = {
     );
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
-
-DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
