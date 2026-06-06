@@ -281,13 +281,20 @@ static const struct behavior_driver_api magic_key_driver_api = {
 /* DT instantiation                                                           */
 /* -------------------------------------------------------------------------- */
 
-#define MK_SEQ_ANTECEDENT(node_id) \
-    { DT_PROP(node_id, antecedent) }
+#define MK_CHILD_DECL(node_id)                                           \
+    static const uint32_t mk_antecedent_##node_id[] =                    \
+        DT_PROP(node_id, antecedent);                                    \
+                                                                         \
+    static const struct zmk_behavior_binding                             \
+        mk_bindings_##node_id[] = {                                      \
+            DT_FOREACH_PROP_ELEM(                                        \
+                node_id,                                                 \
+                bindings,                                                \
+                ZMK_KEYMAP_EXTRACT_BINDING                               \
+            )                                                            \
+    };
 
-#define MK_SEQ_BINDINGS(node_id) \
-    { DT_FOREACH_PROP_ELEM(node_id, bindings, ZMK_KEYMAP_EXTRACT_BINDING) }
-
-#define MK_SEQ_INIT(node_id)                                            \
+#define MK_SEQ_INIT(node_id)                                             \
     {                                                                    \
         .antecedent = mk_antecedent_##node_id,                           \
         .antecedent_len = ARRAY_SIZE(mk_antecedent_##node_id),           \
@@ -318,7 +325,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .sequences = mk_sequences_##n,                                   \
         .sequence_count = ARRAY_SIZE(mk_sequences_##n),                  \
         .fallback_bindings = mk_fallback_bindings_##n,                   \
-        .fallback_binding_len = ARRAY_SIZE(mk_fallback_bindings_##n)     \
+        .fallback_binding_len = ARRAY_SIZE(mk_fallback_bindings_##n),    \
     };                                                                   \
                                                                          \
     static struct magic_key_data mk_data_##n = {                         \
@@ -334,14 +341,8 @@ static const struct behavior_driver_api magic_key_driver_api = {
         APPLICATION,                                                     \
         CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,                             \
         &magic_key_driver_api                                            \
-    )                                                                    \
-                                                                         \
-#define MK_CHILD_DECL(node_id)                                           \
-    static const uint32_t mk_antecedent_##node_id[] =                    \
-        MK_SEQ_ANTECEDENT(node_id);                                      \
-                                                                         \
-    static const struct zmk_behavior_binding                             \
-        mk_bindings_##node_id[] =                                        \
-        MK_SEQ_BINDINGS(node_id);
+    );
+
+DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
