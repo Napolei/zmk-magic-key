@@ -22,6 +22,7 @@ properties:
 
   default_output_bindings:
     type: phandle-array
+    specifier-space: bindings
     required: true
 
 child-binding:
