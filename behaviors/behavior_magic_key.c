@@ -222,7 +222,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
 
 #define MAGIC_KEY_INST(n)                                                   \
                                                                             \
-    static const uint32_t mk_raw_##n[]                                      \
+    static const uint32_t mk_raw_##n[] =                                    \
         DT_INST_PROP(n, antecedent_keycodes);                               \
                                                                             \
     static struct magic_key_antecedent                                      \
