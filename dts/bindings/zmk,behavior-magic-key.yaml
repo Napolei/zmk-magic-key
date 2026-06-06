@@ -9,57 +9,28 @@ description: |
   sequence wins. If no sequence matches (or the delay has expired),
   the final entry in `bindings` is used as the default.
 
-  Antecedent sequences are encoded as a flat array. Each sequence is
-  prefixed by its length, followed by that many (usage_page, keycode)
-  pairs. This matches the ZMK keycode macro format from keys.h, where
-  each macro encodes both the HID usage page and usage ID.
-
-  Example using keys.h macros (each macro is a 32-bit value encoding
-  page + usage):
-
-    antecedent-keycodes = <3 T H E  2 T H  3 I O N>;
-
-  `bindings` must contain exactly (antecedent-count + 1) entries.
-  The first `antecedent-count` entries are the morphs (parallel to the
-  antecedent sequences); the last entry is the default binding.
 
 compatible: "zmk,behavior-magic-key"
 
-#include: behaviors/behavior.yaml
-include: zero_param.yaml
+include: two_param.yaml
 
 properties:
-  antecedent-keycodes:
-    type: array
-    required: true
-    description: >
-      Flat array encoding all antecedent sequences. Each sequence is
-      prefixed by its length: <len k0 k1 ... len k0 ...>.
-      Key values should be ZMK keycode macros from dt-bindings/zmk/keys.h
-      (e.g. T, H, E, SPACE). Each macro encodes the HID usage page and
-      usage ID into a single 32-bit integer.
-
-  antecedent-count:
-    type: int
-    required: true
-    description: >
-      Number of antecedent sequences (and therefore the number of morph
-      bindings). Must equal the number of length-prefixed sequences in
-      antecedent-keycodes.
-
-  bindings:
-    type: phandle-array
-    required: true
-    description: >
-      Array of (antecedent-count + 1) bindings. Entries 0..N-1 are the
-      morph outputs for the corresponding antecedent sequence. Entry N
-      is the default binding emitted when nothing matches.
-
   max-delay-ms:
     type: int
-    default: 0
-    description: >
-      Maximum time in milliseconds between the last typed key and the
-      magic key press for antecedent matching to be active. A value of
-      0 (default) disables the timeout and always attempts a match
-      regardless of timing.
+    default: 1000
+
+  default-bindings:
+    type: phandle-array
+    required: true
+
+child-binding:
+  description: Magic key sequence
+
+  properties:
+    antecedent:
+      type: array
+      required: true
+
+    bindings:
+      type: phandle-array
+      required: true
