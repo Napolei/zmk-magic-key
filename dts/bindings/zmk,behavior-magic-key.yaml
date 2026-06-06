@@ -30,7 +30,7 @@ include: zero_param.yaml
 
 properties:
   antecedent-keycodes:
-    type: uint8-array
+    type: array
     required: true
     description: >
       Flat array encoding all antecedent sequences. Each sequence is
