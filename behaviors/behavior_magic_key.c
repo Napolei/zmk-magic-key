@@ -36,8 +36,8 @@ struct magic_key_config {
     const struct magic_key_sequence *sequences;
     uint8_t sequence_count;
 
-    const struct zmk_behavior_binding *fallback;
-    uint8_t fallback_len;
+    const struct zmk_behavior_binding *fallbacks;
+    uint8_t fallbacks_len;
 };
 
 struct magic_key_data {
@@ -219,8 +219,8 @@ static int magic_key_binding_pressed(
     } else {
 
         ret = invoke_binding_list(
-            cfg->fallback,
-            cfg->fallback_len,
+            cfg->fallbacks,
+            cfg->fallbacks_len,
             event,
             true
         );
@@ -260,8 +260,8 @@ static int magic_key_binding_released(
     } else {
 
         ret = invoke_binding_list(
-            cfg->fallback,
-            cfg->fallback_len,
+            cfg->fallbacks,
+            cfg->fallbacks_len,
             event,
             false
         );
@@ -307,10 +307,10 @@ static const struct behavior_driver_api magic_key_driver_api = {
     DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                      \
                                                                          \
     static const struct zmk_behavior_binding                             \
-        mk_fallback_##n[] = {                                   \
+        mk_fallbacks_##n[] = {                                   \
             DT_FOREACH_PROP_ELEM(                                        \
                 DT_DRV_INST(n),                                          \
-                fallback,                                       \
+                fallbacks,                                       \
                 ZMK_KEYMAP_EXTRACT_BINDING                               \
             )                                                            \
     };                                                                   \
@@ -324,8 +324,8 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .max_delay_ms = DT_INST_PROP(n, max_delay_ms),                   \
         .sequences = mk_sequences_##n,                                   \
         .sequence_count = ARRAY_SIZE(mk_sequences_##n),                  \
-        .fallback = mk_fallback_##n,                   \
-        .fallback_len = ARRAY_SIZE(mk_fallback_##n),    \
+        .fallbacks = mk_fallbacks_##n,                   \
+        .fallbacks_len = ARRAY_SIZE(mk_fallbacks_##n),    \
     };                                                                   \
                                                                          \
     static struct magic_key_data mk_data_##n = {                         \

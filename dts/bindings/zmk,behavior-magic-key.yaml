@@ -20,7 +20,7 @@ properties:
     type: int
     default: 1000
 
-  fallback:
+  fallbacks:
     type: phandle-array
     required: true
 
