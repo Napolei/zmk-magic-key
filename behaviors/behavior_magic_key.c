@@ -309,14 +309,14 @@ static const struct behavior_driver_api magic_key_driver_api = {
                                                                          \
     DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                      \
                                                                          \
-    static const struct zmk_behavior_binding                             \
-        mk_default_output_bindings_##n[] = {                             \
-            DT_FOREACH_PROP_ELEM(                                        \
-                DT_DRV_INST(n),                                          \
-                bindings,                                                \
-                MAGIC_KEY_BINDING_ENTRY                               \
-            )                                                            \
-    };                                                                   \
+    static const struct zmk_behavior_binding
+        mk_default_output_bindings_##n[] = {
+            DT_FOREACH_PROP_ELEM(
+                DT_DRV_INST(n),
+                fallback_bindings,
+                MAGIC_KEY_BINDING_ENTRY
+            )
+    };                                                                 \
                                                                          \
     static const struct magic_key_sequence                               \
         mk_sequences_##n[] = {                                           \
