@@ -15,8 +15,6 @@ compatible: "zmk,behavior-magic-key"
 include: two_param.yaml
 
 properties:
-  "#binding-cells":
-    const: 0
 
   max-delay-ms:
     type: int
