@@ -171,9 +171,9 @@ static int magic_key_keycode_listener(const zmk_event_t *ev) {
         if (!mk_data_##n.firing) {                \
             history_push(&mk_data_##n, encoded);  \
         }                                         \
-    } while (0);
+    } while (0)
 
-DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH)
+    DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH);
 
 #undef MAGIC_KEY_PUSH
 
@@ -278,8 +278,15 @@ static const struct behavior_driver_api magic_key_driver_api = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* DT instantiation                                                           */
+/* DT helpers                                                                 */
 /* -------------------------------------------------------------------------- */
+
+#define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx)                      \
+    ZMK_KEYMAP_EXTRACT_BINDING(                                          \
+        DT_PHANDLE_BY_IDX(node_id, prop, idx),                           \
+        DT_PHA_BY_IDX(node_id, prop, idx, param1),                       \
+        DT_PHA_BY_IDX(node_id, prop, idx, param2)                        \
+    ),
 
 #define MK_CHILD_DECL(node_id)                                           \
     static const uint32_t mk_antecedent_##node_id[] =                    \
@@ -290,7 +297,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
             DT_FOREACH_PROP_ELEM(                                        \
                 node_id,                                                 \
                 bindings,                                                \
-                MAGIC_KEY_BINDING_ENTRY                               \
+                MAGIC_KEY_BINDING_ENTRY                                  \
             )                                                            \
     };
 
@@ -302,21 +309,22 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .binding_len = ARRAY_SIZE(mk_bindings_##node_id),                \
     },
 
-#define MAGIC_KEY_BINDING_ENTRY(idx, node_id) \
-    [idx] = ZMK_KEYMAP_EXTRACT_BINDING(node_id, bindings)
+/* -------------------------------------------------------------------------- */
+/* DT instantiation                                                           */
+/* -------------------------------------------------------------------------- */
 
 #define MAGIC_KEY_INST(n)                                                \
                                                                          \
     DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                      \
                                                                          \
-    static const struct zmk_behavior_binding
-        mk_default_output_bindings_##n[] = {
-            DT_FOREACH_PROP_ELEM(
-                DT_DRV_INST(n),
-                fallback_bindings,
-                MAGIC_KEY_BINDING_ENTRY
-            )
-    };                                                                 \
+    static const struct zmk_behavior_binding                             \
+        mk_default_output_bindings_##n[] = {                             \
+            DT_FOREACH_PROP_ELEM(                                        \
+                DT_DRV_INST(n),                                          \
+                fallback_bindings,                                       \
+                MAGIC_KEY_BINDING_ENTRY                                  \
+            )                                                            \
+    };                                                                   \
                                                                          \
     static const struct magic_key_sequence                               \
         mk_sequences_##n[] = {                                           \
@@ -327,8 +335,9 @@ static const struct behavior_driver_api magic_key_driver_api = {
         .max_delay_ms = DT_INST_PROP(n, max_delay_ms),                   \
         .sequences = mk_sequences_##n,                                   \
         .sequence_count = ARRAY_SIZE(mk_sequences_##n),                  \
-        .default_output_bindings = mk_default_output_bindings_##n,                   \
-        .default_output_bindings_len = ARRAY_SIZE(mk_default_output_bindings_##n),    \
+        .default_output_bindings = mk_default_output_bindings_##n,       \
+        .default_output_bindings_len =                                   \
+            ARRAY_SIZE(mk_default_output_bindings_##n),                  \
     };                                                                   \
                                                                          \
     static struct magic_key_data mk_data_##n = {                         \
