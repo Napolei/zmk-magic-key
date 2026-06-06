@@ -222,7 +222,7 @@ static const struct behavior_driver_api magic_key_driver_api = {
 
 #define MAGIC_KEY_INST(n)                                                   \
                                                                             \
-    static const uint8_t mk_raw_##n[] =                                     \
+    static const uint32_t mk_raw_##n[]                                      \
         DT_INST_PROP(n, antecedent_keycodes);                               \
                                                                             \
     static struct magic_key_antecedent                                      \
@@ -246,29 +246,16 @@ static const struct behavior_driver_api magic_key_driver_api = {
         const uint32_t count =                                              \
             DT_INST_PROP(n, antecedent_count);                              \
                                                                             \
-        const uint8_t *p = mk_raw_##n;                                      \
-                                                                            \
-        static uint32_t mk_encoded_##n[                                     \
-            sizeof(mk_raw_##n) / sizeof(uint8_t)                            \
-        ];                                                                  \
-                                                                            \
-        uint32_t encoded_index = 0;                                         \
+        const uint32_t *p = mk_raw_##n;                                     \
                                                                             \
         for (uint32_t i = 0; i < count; i++) {                              \
-            uint8_t len = *p++;                                             \
+            uint32_t len = *p++;                                            \
                                                                             \
-            mk_antecedents_##n[i].length = len;                             \
-            mk_antecedents_##n[i].keycodes =                                \
-                &mk_encoded_##n[encoded_index];                             \
+            mk_antecedents_##n[i].length = (uint8_t)len;                    \
+            mk_antecedents_##n[i].keycodes = p;                             \
                                                                             \
-            for (uint8_t j = 0; j < len; j++) {                             \
-                uint8_t raw = *p++;                                         \
-                                                                            \
-                mk_encoded_##n[encoded_index++] =                           \
-                    ZMK_HID_USAGE(HID_USAGE_KEY, raw);                      \
-            }                                                               \
+            p += len;                                                       \
         }                                                                   \
-                                                                            \
         return 0;                                                           \
     }                                                                       \
                                                                             \
