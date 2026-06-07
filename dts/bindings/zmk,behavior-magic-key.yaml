@@ -34,3 +34,4 @@ child-binding:
     bindings:
       type: phandle-array
       required: true
+      specifier-space: binding
