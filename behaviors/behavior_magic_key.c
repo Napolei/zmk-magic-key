@@ -114,10 +114,7 @@ static bool history_read(
 static inline uint32_t encoded_from_event(
     const struct zmk_keycode_state_changed *ev
 ) {
-    return ZMK_HID_USAGE(
-        ev->usage_page,
-        ev->keycode
-    );
+    return ev->keycode;
 }
 
 static bool is_modifier(uint32_t keycode) {
