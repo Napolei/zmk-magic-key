@@ -107,9 +107,10 @@ static bool history_read(
 }
 
 static inline uint32_t encoded_from_event(
-    const struct zmk_keycode_state_changed *ev
-) {
-    return ev->keycode;
+    const struct zmk_keycode_state_changed *ev) {
+
+    return ev->keycode |
+           ((uint32_t)ev->usage_page << 16);
 }
 
 static bool is_modifier(uint32_t keycode) {
@@ -257,7 +258,7 @@ static int magic_key_keycode_listener(
         encoded_from_event(ev);
 
     LOG_INF(
-        "magic-key: usage_page=%d keycode=%d encoded=%u",
+        "magic-key: usage_page=%d keycode=0x%X encoded=0x%X",
         ev->usage_page,
         ev->keycode,
         encoded
