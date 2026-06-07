@@ -23,6 +23,7 @@ properties:
   fallback-bindings:
     type: phandle-array
     required: true
+    specifier-space: binding
 
 child-binding:
   properties:
