@@ -61,6 +61,11 @@ static void history_push(
     struct magic_key_data *data,
     uint32_t encoded
 ) {
+    LOG_INF(
+        "magic history push: page=%d keycode=%d",
+        ev->usage_page,
+        ev->keycode
+    );
     data->history[data->head] = encoded;
 
     data->head =
