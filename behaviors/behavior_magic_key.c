@@ -256,6 +256,13 @@ static int magic_key_keycode_listener(
     uint32_t encoded =
         encoded_from_event(ev);
 
+    LOG_INF(
+        "magic-key: usage_page=%d keycode=%d encoded=%u",
+        ev->usage_page,
+        ev->keycode,
+        encoded
+    );
+
 #define MAGIC_KEY_PUSH(n)              \
     do {                               \
         if (!mk_data_##n.firing) {     \
