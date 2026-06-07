@@ -21,7 +21,7 @@
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
-#define MAGIC_KEY_HISTORY_SIZE 8
+#define MAGIC_KEY_HISTORY_SIZE CONFIG_ZMK_MAGIC_KEY_HISTORY_SIZE
 
 struct magic_key_sequence {
     const uint32_t *antecedent;

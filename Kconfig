@@ -1,3 +1,7 @@
 config ZMK_MAGIC_KEY
     bool "ZMK Magic Key"
     default y
+
+config ZMK_MAGIC_KEY_HISTORY_SIZE
+    int "Magic key history size"
+    default 8
