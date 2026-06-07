@@ -334,12 +334,14 @@ static const struct behavior_driver_api
 /* DT helpers                                                                 */
 /* -------------------------------------------------------------------------- */
 
-#define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx)                  \
-    ZMK_KEYMAP_EXTRACT_BINDING(                                      \
-        DT_PHANDLE_BY_IDX(node_id, prop, idx),                       \
-        DT_PHA_BY_IDX_OR(node_id, prop, idx, param1, 0),             \
-        DT_PHA_BY_IDX_OR(node_id, prop, idx, param2, 0)              \
-    ),
+#define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx)                   \
+    {                                                                 \
+        .behavior_dev = DEVICE_DT_NAME(                               \
+            DT_PHANDLE_BY_IDX(node_id, prop, idx)                     \
+        ),                                                            \
+        .param1 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param1, 0),    \
+        .param2 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param2, 0),    \
+    },
 
 #define MK_CHILD_DECL(child)                                         \
     static const uint32_t                                            \
