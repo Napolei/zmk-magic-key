@@ -288,7 +288,7 @@ static int magic_key_keycode_listener(
         ev->keycode,
         encoded
     );
-[]
+
 #define MAGIC_KEY_PUSH(n)              \
     do {                               \
         if (!mk_data_##n.firing) {     \
