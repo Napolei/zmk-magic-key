@@ -109,8 +109,33 @@ static bool history_read(
 static inline uint32_t encoded_from_event(
     const struct zmk_keycode_state_changed *ev) {
 
-    return ev->keycode |
-           ((uint32_t)ev->usage_page << 16);
+    uint32_t mods = 0;
+
+    if (ev->implicit_modifiers &
+        (MOD_LSFT | MOD_RSFT)) {
+        mods |= MOD_LS(0);
+    }
+
+    if (ev->implicit_modifiers &
+        (MOD_LCTL | MOD_RCTL)) {
+        mods |= MOD_LCTL(0);
+    }
+
+    if (ev->implicit_modifiers &
+        (MOD_LALT | MOD_RALT)) {
+        mods |= MOD_LALT(0);
+    }
+
+    if (ev->implicit_modifiers &
+        (MOD_LGUI | MOD_RGUI)) {
+        mods |= MOD_LGUI(0);
+    }
+
+    return mods |
+           ZMK_HID_USAGE(
+               ev->usage_page,
+               ev->keycode
+           );
 }
 
 static bool is_modifier(uint32_t keycode) {
@@ -263,7 +288,7 @@ static int magic_key_keycode_listener(
         ev->keycode,
         encoded
     );
-
+[]
 #define MAGIC_KEY_PUSH(n)              \
     do {                               \
         if (!mk_data_##n.firing) {     \
