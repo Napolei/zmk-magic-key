@@ -241,21 +241,6 @@ static int magic_key_keycode_listener(
     }
 
     /*
-     * Ignore non-keyboard usages.
-     *
-     * Filters:
-     * - layer switching
-     * - bluetooth behaviors
-     * - output switching
-     * - internal behavior events
-     */
-    if (ev->usage_page !=
-        HID_USAGE_KEY) {
-
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    /*
      * Ignore modifiers.
      *
      * Prevents sequences like:
