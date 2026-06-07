@@ -12,7 +12,7 @@ description: |
 
 compatible: "zmk,behavior-magic-key"
 
-include: two_param.yaml
+include: zero_param.yaml
 
 properties:
 
