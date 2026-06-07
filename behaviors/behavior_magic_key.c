@@ -57,6 +57,8 @@ struct magic_key_data {
     bool firing;
 
     int resolved_index;
+
+    uint32_t active_position;
 };
 
 static void history_push(
@@ -293,14 +295,17 @@ static int magic_key_keycode_listener(
         encoded
     );
 
-#define MAGIC_KEY_PUSH(n)              \
-    do {                               \
-        if (!mk_data_##n.firing) {     \
-            history_push(              \
-                &mk_data_##n,          \
-                encoded                \
-            );                         \
-        }                              \
+#define MAGIC_KEY_PUSH(n)                                  \
+    do {                                                   \
+        if (!mk_data_##n.firing &&                         \
+            ev->position !=                                \
+                mk_data_##n.active_position) {             \
+                                                           \
+            history_push(                                  \
+                &mk_data_##n,                              \
+                encoded                                    \
+            );                                             \
+        }                                                  \
     } while (0)
 
     DT_INST_FOREACH_STATUS_OKAY(
@@ -349,6 +354,7 @@ static int magic_key_binding_pressed(
         );
 
     data->firing = true;
+    data->active_position = event.position;
 
     int ret;
 
@@ -398,6 +404,8 @@ static int magic_key_binding_released(
         dev->data;
 
     data->firing = true;
+
+    data->active_position = UINT32_MAX;
 
     int ret;
 
@@ -571,6 +579,7 @@ static const struct
     static struct magic_key_data                    \
         mk_data_##n = {                             \
             .resolved_index = -1,                   \
+            .active_position = UINT32_MAX,          \
     };                                              \
                                                     \
     BEHAVIOR_DT_INST_DEFINE(                        \
