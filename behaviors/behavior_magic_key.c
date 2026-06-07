@@ -113,22 +113,22 @@ static inline uint32_t encoded_from_event(
 
     if (ev->implicit_modifiers &
         (MOD_LSFT | MOD_RSFT)) {
-        mods |= MOD_LS(0);
+        mods |= LS(0);
     }
 
     if (ev->implicit_modifiers &
         (MOD_LCTL | MOD_RCTL)) {
-        mods |= MOD_LCTL(0);
+        mods |= LC(0);
     }
 
     if (ev->implicit_modifiers &
         (MOD_LALT | MOD_RALT)) {
-        mods |= MOD_LALT(0);
+        mods |= LA(0);
     }
 
     if (ev->implicit_modifiers &
         (MOD_LGUI | MOD_RGUI)) {
-        mods |= MOD_LGUI(0);
+        mods |= LG(0);
     }
 
     return mods |
