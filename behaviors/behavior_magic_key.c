@@ -108,7 +108,7 @@ static bool history_read(
     return true;
 }
 
-jstatic inline uint32_t encoded_from_event(
+static inline uint32_t encoded_from_event(
     const struct zmk_keycode_state_changed *ev) {
 
     uint32_t usage =
