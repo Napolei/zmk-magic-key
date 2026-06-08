@@ -57,8 +57,6 @@ struct magic_key_data {
     bool firing;
 
     int resolved_index;
-
-    uint32_t active_position;
 };
 
 static void history_push(
@@ -111,8 +109,8 @@ static bool history_read(
 }
 
 static inline uint32_t encoded_from_event(
-    const struct zmk_keycode_state_changed *ev) {
-
+    const struct zmk_keycode_state_changed *ev
+) {
     uint32_t usage =
         ZMK_HID_USAGE(
             ev->usage_page,
@@ -123,28 +121,34 @@ static inline uint32_t encoded_from_event(
 
     if (ev->implicit_modifiers &
         (MOD_LSFT | MOD_RSFT)) {
+
         mods |= MOD_LSFT;
     }
 
     if (ev->implicit_modifiers &
         (MOD_LALT | MOD_RALT)) {
-        mods |= MOD_RALT;
+
+        mods |= MOD_LALT;
     }
 
     if (ev->implicit_modifiers &
         (MOD_LCTL | MOD_RCTL)) {
+
         mods |= MOD_LCTL;
     }
 
     if (ev->implicit_modifiers &
         (MOD_LGUI | MOD_RGUI)) {
+
         mods |= MOD_LGUI;
     }
 
     return usage | (mods << 24);
 }
 
-static bool is_modifier(uint32_t keycode) {
+static bool is_modifier(
+    uint32_t keycode
+) {
     return (
         keycode >=
             HID_USAGE_KEY_KEYBOARD_LEFTCONTROL &&
@@ -295,17 +299,14 @@ static int magic_key_keycode_listener(
         encoded
     );
 
-#define MAGIC_KEY_PUSH(n)                                  \
-    do {                                                   \
-        if (!mk_data_##n.firing &&                         \
-            ev->position !=                                \
-                mk_data_##n.active_position) {             \
-                                                           \
-            history_push(                                  \
-                &mk_data_##n,                              \
-                encoded                                    \
-            );                                             \
-        }                                                  \
+#define MAGIC_KEY_PUSH(n)                          \
+    do {                                           \
+        if (!mk_data_##n.firing) {                 \
+            history_push(                          \
+                &mk_data_##n,                      \
+                encoded                            \
+            );                                     \
+        }                                          \
     } while (0)
 
     DT_INST_FOREACH_STATUS_OKAY(
@@ -354,7 +355,6 @@ static int magic_key_binding_pressed(
         );
 
     data->firing = true;
-    data->active_position = event.position;
 
     int ret;
 
@@ -382,6 +382,8 @@ static int magic_key_binding_pressed(
             true
         );
     }
+
+    k_msleep(5);
 
     data->firing = false;
 
@@ -405,8 +407,6 @@ static int magic_key_binding_released(
 
     data->firing = true;
 
-    data->active_position = UINT32_MAX;
-
     int ret;
 
     if (data->resolved_index >= 0) {
@@ -433,6 +433,8 @@ static int magic_key_binding_released(
             false
         );
     }
+
+    k_msleep(5);
 
     data->firing = false;
 
@@ -487,9 +489,9 @@ static const struct
     static const uint32_t                           \
         mk_antecedent_##child[] =                   \
             DT_PROP(child, antecedent);             \
-                                                     \
+                                                    \
     static const                                    \
-        struct zmk_behavior_binding                  \
+        struct zmk_behavior_binding                 \
         mk_bindings_##child[] = {                   \
             DT_FOREACH_PROP_ELEM(                   \
                 child,                              \
@@ -579,7 +581,6 @@ static const struct
     static struct magic_key_data                    \
         mk_data_##n = {                             \
             .resolved_index = -1,                   \
-            .active_position = UINT32_MAX,          \
     };                                              \
                                                     \
     BEHAVIOR_DT_INST_DEFINE(                        \
