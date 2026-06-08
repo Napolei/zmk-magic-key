@@ -250,42 +250,34 @@ DT_INST_FOREACH_STATUS_OKAY(
 /* Listener                                                                   */
 /* -------------------------------------------------------------------------- */
 
+static bool is_modifier_keycode(uint32_t keycode) {
+    return
+        (keycode >= HID_USAGE_KEY_KEYBOARD_LEFTCONTROL &&
+         keycode <= HID_USAGE_KEY_KEYBOARD_RIGHT_GUI);
+}
+
 static int magic_key_keycode_listener(
-    const zmk_event_t *eh
-) {
-    const struct
-        zmk_keycode_state_changed *ev =
-            as_zmk_keycode_state_changed(
-                eh
-            );
+    const zmk_event_t *eh) {
+
+    const struct zmk_keycode_state_changed *ev =
+        as_zmk_keycode_state_changed(eh);
 
     if (!ev) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /*
-     * Only track key presses.
-     *
-     * Releases create duplicates and
-     * interfere with matching.
-     */
-    if (!ev->state) {
+    /* only record key releases */
+    if (ev->state) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /*
-     * Ignore modifiers.
-     *
-     * Prevents sequences like:
-     * Shift + A
-     *
-     * from becoming:
-     * [LSHIFT, A]
-     *
-     * instead of just:
-     * [A]
-     */
-    if (is_modifier(ev->keycode)) {
+    /* ignore non-keyboard usages */
+    if (ev->usage_page != HID_USAGE_KEY) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    /* ignore pure modifiers */
+    if (is_modifier_keycode(ev->keycode)) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
@@ -293,25 +285,24 @@ static int magic_key_keycode_listener(
         encoded_from_event(ev);
 
     LOG_INF(
-        "magic-key: usage_page=%d keycode=0x%X encoded=0x%X",
+        "magic-key: usage_page=%u keycode=0x%x encoded=0x%x",
         ev->usage_page,
         ev->keycode,
         encoded
     );
 
-#define MAGIC_KEY_PUSH(n)                          \
-    do {                                           \
-        if (!mk_data_##n.firing) {                 \
-            history_push(                          \
-                &mk_data_##n,                      \
-                encoded                            \
-            );                                     \
-        }                                          \
+#define MAGIC_KEY_PUSH(n)                  \
+    do {                                   \
+        if (!mk_data_##n.firing) {         \
+            history_push(                  \
+                &mk_data_##n,              \
+                encoded                    \
+            );                             \
+        }                                  \
     } while (0)
 
     DT_INST_FOREACH_STATUS_OKAY(
-        MAGIC_KEY_PUSH
-    );
+        MAGIC_KEY_PUSH);
 
 #undef MAGIC_KEY_PUSH
 
