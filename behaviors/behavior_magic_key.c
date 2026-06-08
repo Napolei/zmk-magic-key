@@ -108,7 +108,7 @@ static int find_match(const struct magic_key_config *cfg,
 
 /* ---------------- INVOKE ---------------- */
 
-qqstatic int invoke_list(const struct zmk_behavior_binding *bindings,
+static int invoke_list(const struct zmk_behavior_binding *bindings,
                        uint8_t len,
                        struct zmk_behavior_binding_event event,
                        bool pressed)
