@@ -108,10 +108,10 @@ static int find_match(const struct magic_key_config *cfg,
 
 /* ---------------- INVOKE ---------------- */
 
-static int invoke(const struct zmk_behavior_binding *bindings,
-                  uint8_t len,
-                  struct zmk_behavior_binding_event event,
-                  bool pressed)
+qqstatic int invoke_list(const struct zmk_behavior_binding *bindings,
+                       uint8_t len,
+                       struct zmk_behavior_binding_event event,
+                       bool pressed)
 {
     int ret = 0;
 
@@ -122,7 +122,14 @@ static int invoke(const struct zmk_behavior_binding *bindings,
     return ret;
 }
 
-/* ---------------- DEVICE LISTENER ---------------- */
+/* ---------------- DEVICE INST DATA ---------------- */
+
+#define MAGIC_KEY_DECLARE(n) \
+    static struct magic_key_data mk_data_##n;
+
+DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_DECLARE)
+
+/* ---------------- LISTENER ---------------- */
 
 static int listener(const zmk_event_t *eh)
 {
@@ -137,7 +144,6 @@ static int listener(const zmk_event_t *eh)
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    /* ignore modifiers */
     if (ev->keycode >= HID_USAGE_KEY_KEYBOARD_LEFTCONTROL &&
         ev->keycode <= HID_USAGE_KEY_KEYBOARD_RIGHT_GUI) {
         return ZMK_EV_EVENT_BUBBLE;
@@ -145,16 +151,22 @@ static int listener(const zmk_event_t *eh)
 
     uint32_t encoded = ev->keycode;
 
-#define PUSH(n) \
+    /* FIX: expand INST list INSIDE macro scope, not via separate PUSH macro */
+    DT_INST_FOREACH_STATUS_OKAY(
+        static void _mk_push_##__LINE__(void) { }
+    );
+
+#define PUSH_INSTANCE(n) \
     do { \
+        extern struct magic_key_data mk_data_##n; \
         if (!mk_data_##n.firing) { \
             history_push(&mk_data_##n, encoded); \
         } \
     } while (0)
 
-    DT_INST_FOREACH_STATUS_OKAY(PUSH);
+    DT_INST_FOREACH_STATUS_OKAY(PUSH_INSTANCE);
 
-#undef PUSH
+#undef PUSH_INSTANCE
 
     return ZMK_EV_EVENT_BUBBLE;
 }
@@ -180,12 +192,12 @@ static int pressed(struct zmk_behavior_binding *binding,
         const struct magic_key_sequence *seq =
             &cfg->sequences[data->resolved_index];
 
-        ret = invoke(seq->bindings, seq->binding_len, event, true);
+        ret = invoke_list(seq->bindings, seq->binding_len, event, true);
     } else {
-        ret = invoke(cfg->fallback_bindings,
-                     cfg->fallback_bindings_len,
-                     event,
-                     true);
+        ret = invoke_list(cfg->fallback_bindings,
+                          cfg->fallback_bindings_len,
+                          event,
+                          true);
     }
 
     data->firing = false;
@@ -207,12 +219,12 @@ static int released(struct zmk_behavior_binding *binding,
         const struct magic_key_sequence *seq =
             &cfg->sequences[data->resolved_index];
 
-        ret = invoke(seq->bindings, seq->binding_len, event, false);
+        ret = invoke_list(seq->bindings, seq->binding_len, event, false);
     } else {
-        ret = invoke(cfg->fallback_bindings,
-                     cfg->fallback_bindings_len,
-                     event,
-                     false);
+        ret = invoke_list(cfg->fallback_bindings,
+                          cfg->fallback_bindings_len,
+                          event,
+                          false);
     }
 
     data->firing = false;
@@ -224,7 +236,7 @@ static const struct behavior_driver_api api = {
     .binding_released = released,
 };
 
-/* ---------------- DT (FIXED: NO CHILD EXPANSION) ---------------- */
+/* ---------------- DT ---------------- */
 
 #define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx) \
     { \
@@ -242,8 +254,6 @@ static const struct behavior_driver_api api = {
         }, \
         .binding_len = DT_PROP_LEN(child, bindings), \
     }
-
-/* ---------------- INST ---------------- */
 
 #define MAGIC_KEY_INST(n) \
     static struct magic_key_data mk_data_##n = { .resolved_index = -1 }; \
