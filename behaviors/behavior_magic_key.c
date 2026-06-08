@@ -40,24 +40,17 @@ struct magic_key_config {
 
 struct magic_key_data {
     uint32_t history[MAGIC_KEY_HISTORY_SIZE];
-
     uint8_t head;
     uint8_t count;
-
     int64_t last_press_time;
-
     bool firing;
-
     int resolved_index;
 };
 
 /* -------------------------------------------------------------------------- */
-/* history                                                                    */
-/* -------------------------------------------------------------------------- */
 
 static void history_push(struct magic_key_data *data, uint32_t encoded) {
     data->history[data->head] = encoded;
-
     data->head = (data->head + 1) % MAGIC_KEY_HISTORY_SIZE;
 
     if (data->count < MAGIC_KEY_HISTORY_SIZE) {
@@ -67,12 +60,13 @@ static void history_push(struct magic_key_data *data, uint32_t encoded) {
     data->last_press_time = k_uptime_get();
 }
 
-static bool history_read(const struct magic_key_data *data, uint8_t len, uint32_t *out) {
-    if (len == 0 || len > data->count) {
-        return false;
-    }
+static bool history_read(const struct magic_key_data *data,
+                         uint8_t len,
+                         uint32_t *out) {
+    if (len == 0 || len > data->count) return false;
 
-    int start = ((int)data->head - (int)len + MAGIC_KEY_HISTORY_SIZE) % MAGIC_KEY_HISTORY_SIZE;
+    int start = ((int)data->head - (int)len + MAGIC_KEY_HISTORY_SIZE) %
+                MAGIC_KEY_HISTORY_SIZE;
 
     for (uint8_t i = 0; i < len; i++) {
         out[i] = data->history[(start + i) % MAGIC_KEY_HISTORY_SIZE];
@@ -80,10 +74,6 @@ static bool history_read(const struct magic_key_data *data, uint8_t len, uint32_
 
     return true;
 }
-
-/* -------------------------------------------------------------------------- */
-/* encoding                                                                   */
-/* -------------------------------------------------------------------------- */
 
 static inline uint32_t encoded_from_event(const struct zmk_keycode_state_changed *ev) {
     uint32_t usage = ZMK_HID_USAGE(ev->usage_page, ev->keycode);
@@ -102,33 +92,26 @@ static bool is_modifier_keycode(uint32_t keycode) {
             keycode <= HID_USAGE_KEY_KEYBOARD_RIGHT_GUI);
 }
 
-/* -------------------------------------------------------------------------- */
-/* bindings                                                                   */
-/* -------------------------------------------------------------------------- */
-
-static int invoke_binding_list(const struct zmk_behavior_binding *bindings, uint8_t len,
-                                struct zmk_behavior_binding_event event, bool pressed) {
-    int ret = 0;
-
+static int invoke_binding_list(const struct zmk_behavior_binding *bindings,
+                               uint8_t len,
+                               struct zmk_behavior_binding_event event,
+                               bool pressed) {
     for (uint8_t i = 0; i < len; i++) {
-        ret = zmk_behavior_invoke_binding(&bindings[i], event, pressed);
+        zmk_behavior_invoke_binding(&bindings[i], event, pressed);
     }
-
-    return ret;
+    return 0;
 }
 
-/* -------------------------------------------------------------------------- */
-/* matching                                                                   */
-/* -------------------------------------------------------------------------- */
-
-static int find_match(const struct magic_key_config *cfg, struct magic_key_data *data,
+static int find_match(const struct magic_key_config *cfg,
+                      struct magic_key_data *data,
                       int64_t now) {
+
     if (cfg->max_delay_ms > 0 &&
         (now - data->last_press_time) > cfg->max_delay_ms) {
         return -1;
     }
 
-    int best_index = -1;
+    int best = -1;
     uint8_t best_len = 0;
 
     uint32_t window[MAGIC_KEY_HISTORY_SIZE];
@@ -137,52 +120,46 @@ static int find_match(const struct magic_key_config *cfg, struct magic_key_data 
         const struct magic_key_sequence *seq = &cfg->sequences[i];
 
         if (seq->antecedent_len <= best_len) continue;
-
         if (!history_read(data, seq->antecedent_len, window)) continue;
 
-        if (memcmp(window, seq->antecedent,
+        if (memcmp(window,
+                   seq->antecedent,
                    seq->antecedent_len * sizeof(uint32_t)) == 0) {
-            best_index = i;
+            best = i;
             best_len = seq->antecedent_len;
         }
     }
 
-    return best_index;
+    return best;
 }
 
 /* -------------------------------------------------------------------------- */
-/* per-instance data                                                         */
+/* per-instance data                                                          */
 /* -------------------------------------------------------------------------- */
 
 #define MAGIC_KEY_DECLARE(n) static struct magic_key_data mk_data_##n;
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_DECLARE)
 
 /* -------------------------------------------------------------------------- */
-/* listener                                                                  */
+/* listener                                                                   */
 /* -------------------------------------------------------------------------- */
 
-static bool is_modifier(uint32_t keycode) {
-    return (keycode >= HID_USAGE_KEY_KEYBOARD_LEFTCONTROL &&
-            keycode <= HID_USAGE_KEY_KEYBOARD_RIGHT_GUI);
-}
-
-static int magic_key_keycode_listener(const zmk_event_t *eh) {
+static int magic_key_listener(const zmk_event_t *eh) {
     const struct zmk_keycode_state_changed *ev =
         as_zmk_keycode_state_changed(eh);
 
     if (!ev) return ZMK_EV_EVENT_BUBBLE;
-
-    if (ev->state) return ZMK_EV_EVENT_BUBBLE;              // only releases
+    if (ev->state) return ZMK_EV_EVENT_BUBBLE;
     if (ev->usage_page != HID_USAGE_KEY) return ZMK_EV_EVENT_BUBBLE;
     if (is_modifier_keycode(ev->keycode)) return ZMK_EV_EVENT_BUBBLE;
 
     uint32_t encoded = encoded_from_event(ev);
 
-#define MAGIC_KEY_PUSH(n)                                                     \
-    do {                                                                      \
-        if (!mk_data_##n.firing) {                                            \
-            history_push(&mk_data_##n, encoded);                              \
-        }                                                                     \
+#define MAGIC_KEY_PUSH(n)                                      \
+    do {                                                       \
+        if (!mk_data_##n.firing) {                             \
+            history_push(&mk_data_##n, encoded);               \
+        }                                                      \
     } while (0)
 
     DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_PUSH);
@@ -192,15 +169,16 @@ static int magic_key_keycode_listener(const zmk_event_t *eh) {
     return ZMK_EV_EVENT_BUBBLE;
 }
 
-ZMK_LISTENER(magic_key, magic_key_keycode_listener);
+ZMK_LISTENER(magic_key, magic_key_listener);
 ZMK_SUBSCRIPTION(magic_key, zmk_keycode_state_changed);
 
 /* -------------------------------------------------------------------------- */
-/* behavior                                                                  */
+/* behavior                                                                   */
 /* -------------------------------------------------------------------------- */
 
-static int magic_key_binding_pressed(struct zmk_behavior_binding *binding,
-                                      struct zmk_behavior_binding_event event) {
+static int magic_key_pressed(struct zmk_behavior_binding *binding,
+                             struct zmk_behavior_binding_event event) {
+
     const struct device *dev = device_get_binding(binding->behavior_dev);
     const struct magic_key_config *cfg = dev->config;
     struct magic_key_data *data = dev->data;
@@ -208,17 +186,24 @@ static int magic_key_binding_pressed(struct zmk_behavior_binding *binding,
     data->resolved_index = find_match(cfg, data, k_uptime_get());
     data->firing = true;
 
-    int ret;
+    int ret = 0;
+
+    const struct zmk_behavior_binding *b;
+    uint8_t len;
 
     if (data->resolved_index >= 0) {
         const struct magic_key_sequence *seq =
             &cfg->sequences[data->resolved_index];
 
-        ret = invoke_binding_list(seq->bindings, seq->binding_len, event, true);
+        b = seq->bindings;
+        len = seq->binding_len;
     } else {
-        ret = invoke_binding_list(cfg->fallback_bindings,
-                                  cfg->fallback_bindings_len,
-                                  event, true);
+        b = cfg->fallback_bindings;
+        len = cfg->fallback_bindings_len;
+    }
+
+    for (uint8_t i = 0; i < len; i++) {
+        ret = zmk_behavior_invoke_binding(&b[i], event, true);
     }
 
     k_msleep(5);
@@ -227,25 +212,33 @@ static int magic_key_binding_pressed(struct zmk_behavior_binding *binding,
     return ret;
 }
 
-static int magic_key_binding_released(struct zmk_behavior_binding *binding,
-                                      struct zmk_behavior_binding_event event) {
+static int magic_key_released(struct zmk_behavior_binding *binding,
+                              struct zmk_behavior_binding_event event) {
+
     const struct device *dev = device_get_binding(binding->behavior_dev);
     const struct magic_key_config *cfg = dev->config;
     struct magic_key_data *data = dev->data;
 
     data->firing = true;
 
-    int ret;
+    int ret = 0;
+
+    const struct zmk_behavior_binding *b;
+    uint8_t len;
 
     if (data->resolved_index >= 0) {
         const struct magic_key_sequence *seq =
             &cfg->sequences[data->resolved_index];
 
-        ret = invoke_binding_list(seq->bindings, seq->binding_len, event, false);
+        b = seq->bindings;
+        len = seq->binding_len;
     } else {
-        ret = invoke_binding_list(cfg->fallback_bindings,
-                                  cfg->fallback_bindings_len,
-                                  event, false);
+        b = cfg->fallback_bindings;
+        len = cfg->fallback_bindings_len;
+    }
+
+    for (uint8_t i = 0; i < len; i++) {
+        ret = zmk_behavior_invoke_binding(&b[i], event, false);
     }
 
     k_msleep(5);
@@ -255,65 +248,65 @@ static int magic_key_binding_released(struct zmk_behavior_binding *binding,
 }
 
 static const struct behavior_driver_api magic_key_driver_api = {
-    .binding_pressed = magic_key_binding_pressed,
-    .binding_released = magic_key_binding_released,
+    .binding_pressed = magic_key_pressed,
+    .binding_released = magic_key_released,
 };
 
 /* -------------------------------------------------------------------------- */
-/* devicetree generation                                                     */
+/* devicetree                                                                */
 /* -------------------------------------------------------------------------- */
 
-#define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx)                      \
-    {                                                                     \
-        .behavior_dev = DEVICE_DT_NAME(DT_PHANDLE_BY_IDX(node_id, prop, idx)), \
-        .param1 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param1, 0),       \
-        .param2 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param2, 0),       \
+#define MAGIC_KEY_BINDING_ENTRY(node_id, prop, idx)            \
+    {                                                          \
+        .behavior_dev = DEVICE_DT_NAME(                        \
+            DT_PHANDLE_BY_IDX(node_id, prop, idx)),           \
+        .param1 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param1, 0), \
+        .param2 = DT_PHA_BY_IDX_OR(node_id, prop, idx, param2, 0), \
     }
 
-#define MK_CHILD_DECL(child)                                              \
-    static const uint32_t mk_antecedent_##child[] = DT_PROP(child, antecedent); \
-    static const struct zmk_behavior_binding mk_bindings_##child[] = {   \
-        DT_FOREACH_PROP_ELEM(child, bindings, MAGIC_KEY_BINDING_ENTRY)    \
+#define MK_CHILD_DECL(child)                                   \
+    static const uint32_t mk_antecedent_##child[] =           \
+        DT_PROP(child, antecedent);                            \
+    static const struct zmk_behavior_binding mk_bindings_##child[] = { \
+        DT_FOREACH_PROP_ELEM(child, bindings, MAGIC_KEY_BINDING_ENTRY) \
     };
 
-#define MK_SEQ_INIT(child)                                                \
-    {                                                                     \
-        .antecedent = mk_antecedent_##child,                              \
-        .antecedent_len = ARRAY_SIZE(mk_antecedent_##child),             \
-        .bindings = mk_bindings_##child,                                  \
-        .binding_len = ARRAY_SIZE(mk_bindings_##child),                  \
+#define MK_SEQ_INIT(child)                                     \
+    {                                                          \
+        .antecedent = mk_antecedent_##child,                  \
+        .antecedent_len = ARRAY_SIZE(mk_antecedent_##child),  \
+        .bindings = mk_bindings_##child,                      \
+        .binding_len = ARRAY_SIZE(mk_bindings_##child),       \
     },
 
 /* -------------------------------------------------------------------------- */
-/* instantiation                                                            */
-/* -------------------------------------------------------------------------- */
 
-#define MAGIC_KEY_INST(n)                                                 \
-    DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)                       \
-                                                                          \
+#define MAGIC_KEY_INST(n)                                      \
+    DT_FOREACH_CHILD(DT_DRV_INST(n), MK_CHILD_DECL)           \
+                                                           \
     static const struct zmk_behavior_binding mk_fallback_bindings_##n[] = { \
-        DT_FOREACH_PROP_ELEM(DT_DRV_INST(n), fallback_bindings,          \
-                             MAGIC_KEY_BINDING_ENTRY)                     \
-    };                                                                    \
-                                                                          \
-    static const struct magic_key_sequence mk_sequences_##n[] = {        \
-        DT_FOREACH_CHILD(DT_DRV_INST(n), MK_SEQ_INIT)                    \
-    };                                                                    \
-                                                                          \
-    static const struct magic_key_config mk_cfg_##n = {                  \
-        .max_delay_ms = DT_INST_PROP(n, max_delay_ms),                   \
-        .sequences = mk_sequences_##n,                                   \
-        .sequence_count = ARRAY_SIZE(mk_sequences_##n),                 \
-        .fallback_bindings = mk_fallback_bindings_##n,                   \
-        .fallback_bindings_len = ARRAY_SIZE(mk_fallback_bindings_##n),   \
-    };                                                                    \
-                                                                          \
-    static struct magic_key_data mk_data_##n = {                         \
-        .resolved_index = -1,                                             \
-    };                                                                    \
-                                                                          \
-    BEHAVIOR_DT_INST_DEFINE(n, NULL, NULL, &mk_data_##n, &mk_cfg_##n,    \
-                            APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, \
-                            &magic_key_driver_api);
+        DT_FOREACH_PROP_ELEM(DT_DRV_INST(n), fallback_bindings, \
+                             MAGIC_KEY_BINDING_ENTRY)        \
+    };                                                        \
+                                                           \
+    static const struct magic_key_sequence mk_sequences_##n[] = { \
+        DT_FOREACH_CHILD(DT_DRV_INST(n), MK_SEQ_INIT)        \
+    };                                                        \
+                                                           \
+    static const struct magic_key_config mk_cfg_##n = {      \
+        .max_delay_ms = DT_INST_PROP(n, max_delay_ms),       \
+        .sequences = mk_sequences_##n,                       \
+        .sequence_count = ARRAY_SIZE(mk_sequences_##n),     \
+        .fallback_bindings = mk_fallback_bindings_##n,       \
+        .fallback_bindings_len = ARRAY_SIZE(mk_fallback_bindings_##n), \
+    };                                                        \
+                                                           \
+    static struct magic_key_data mk_data_##n = {             \
+        .resolved_index = -1,                               \
+    };                                                        \
+                                                           \
+    BEHAVIOR_DT_INST_DEFINE(n, NULL, NULL, &mk_data_##n, &mk_cfg_##n, \
+        APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,     \
+        &magic_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(MAGIC_KEY_INST)
