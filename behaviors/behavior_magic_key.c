@@ -294,12 +294,21 @@ ZMK_SUBSCRIPTION(
 
 static int magic_key_binding_pressed(
     struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event
-) {
+    struct zmk_behavior_binding_event event) {
+
+    ARG_UNUSED(binding);
+    ARG_UNUSED(event);
+
+    return 0;
+}
+
+static int magic_key_binding_released(
+    struct zmk_behavior_binding *binding,
+    struct zmk_behavior_binding_event event) {
+
     const struct device *dev =
         device_get_binding(
-            binding->behavior_dev
-        );
+            binding->behavior_dev);
 
     const struct magic_key_config *cfg =
         dev->config;
@@ -320,11 +329,10 @@ static int magic_key_binding_pressed(
 
     if (data->resolved_index >= 0) {
 
-        const struct
-            magic_key_sequence *seq =
-                &cfg->sequences[
-                    data->resolved_index
-                ];
+        const struct magic_key_sequence *seq =
+            &cfg->sequences[
+                data->resolved_index
+            ];
 
         ret = invoke_binding_list(
             seq->bindings,
@@ -333,51 +341,7 @@ static int magic_key_binding_pressed(
             true
         );
 
-    } else {
-
-        ret = invoke_binding_list(
-            cfg->fallback_bindings,
-            cfg->fallback_bindings_len,
-            event,
-            true
-        );
-    }
-
-    k_msleep(5);
-
-    data->firing = false;
-
-    return ret;
-}
-
-static int magic_key_binding_released(
-    struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event
-) {
-    const struct device *dev =
-        device_get_binding(
-            binding->behavior_dev
-        );
-
-    const struct magic_key_config *cfg =
-        dev->config;
-
-    struct magic_key_data *data =
-        dev->data;
-
-    data->firing = true;
-
-    int ret;
-
-    if (data->resolved_index >= 0) {
-
-        const struct
-            magic_key_sequence *seq =
-                &cfg->sequences[
-                    data->resolved_index
-                ];
-
-        ret = invoke_binding_list(
+        invoke_binding_list(
             seq->bindings,
             seq->binding_len,
             event,
@@ -390,11 +354,16 @@ static int magic_key_binding_released(
             cfg->fallback_bindings,
             cfg->fallback_bindings_len,
             event,
+            true
+        );
+
+        invoke_binding_list(
+            cfg->fallback_bindings,
+            cfg->fallback_bindings_len,
+            event,
             false
         );
     }
-
-    k_msleep(5);
 
     data->firing = false;
 
