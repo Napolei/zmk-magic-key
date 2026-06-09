@@ -299,6 +299,8 @@ static int magic_key_binding_pressed(
     ARG_UNUSED(binding);
     ARG_UNUSED(event);
 
+    data->firing = true;
+
     return 0;
 }
 
