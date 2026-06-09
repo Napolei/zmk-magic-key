@@ -294,12 +294,21 @@ ZMK_SUBSCRIPTION(
 
 static int magic_key_binding_pressed(
     struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event) {
+    struct zmk_behavior_binding_event event
+) {
+    const struct device *dev =
+        device_get_binding(
+            binding->behavior_dev
+        );
 
-    ARG_UNUSED(binding);
-    ARG_UNUSED(event);
+    const struct magic_key_config *cfg =
+        dev->config;
+
+    struct magic_key_data *data =
+        dev->data;
 
     data->firing = true;
+
 
     return 0;
 }
