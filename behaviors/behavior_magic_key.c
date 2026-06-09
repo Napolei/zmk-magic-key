@@ -291,7 +291,7 @@ ZMK_SUBSCRIPTION(
 /* -------------------------------------------------------------------------- */
 /* Behavior callbacks                                                         */
 /* -------------------------------------------------------------------------- */
-[]
+
 static int magic_key_binding_pressed(
     struct zmk_behavior_binding *binding,
     struct zmk_behavior_binding_event event
