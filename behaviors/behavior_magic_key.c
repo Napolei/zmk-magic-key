@@ -111,16 +111,14 @@ static bool history_read(
 static inline uint32_t encoded_from_event(
     const struct zmk_keycode_state_changed *ev
 ) {
-    uint32_t encoded =
-        ((uint32_t)ev->keycode) |
-        (((uint32_t)ev->usage_page) << 16);
+    uint8_t mods =
+        ev->implicit_modifiers |
+        ev->explicit_modifiers;
 
-    uint8_t mods = zmk_hid_get_explicit_mods() |
-                   zmk_hid_get_implicit_mods();
-
-    encoded |= ((uint32_t)mods << 24);
-
-    return encoded;
+    return
+        ((uint32_t)mods << 24) |
+        ((uint32_t)ev->usage_page << 16) |
+        (uint32_t)ev->keycode;
 }
 
 static bool is_modifier(
