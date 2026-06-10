@@ -135,19 +135,31 @@ static bool is_modifier(
 static int invoke_binding_list(
     const struct zmk_behavior_binding *bindings,
     uint8_t len,
-    struct zmk_behavior_binding_event event,
-    bool pressed
+    struct zmk_behavior_binding_event event
 ) {
     int ret = 0;
 
     for (uint8_t i = 0; i < len; i++) {
 
-        ret =
-            zmk_behavior_invoke_binding(
-                &bindings[i],
-                event,
-                pressed
-            );
+        ret = zmk_behavior_invoke_binding(
+            &bindings[i],
+            event,
+            true
+        );
+
+        if (ret < 0) {
+            return ret;
+        }
+
+        ret = zmk_behavior_invoke_binding(
+            &bindings[i],
+            event,
+            false
+        );
+
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     return ret;
@@ -321,11 +333,12 @@ static int magic_key_binding_pressed(
 
 static int magic_key_binding_released(
     struct zmk_behavior_binding *binding,
-    struct zmk_behavior_binding_event event) {
-
+    struct zmk_behavior_binding_event event
+) {
     const struct device *dev =
         device_get_binding(
-            binding->behavior_dev);
+            binding->behavior_dev
+        );
 
     const struct magic_key_config *cfg =
         dev->config;
@@ -354,15 +367,7 @@ static int magic_key_binding_released(
         ret = invoke_binding_list(
             seq->bindings,
             seq->binding_len,
-            event,
-            true
-        );
-
-        invoke_binding_list(
-            seq->bindings,
-            seq->binding_len,
-            event,
-            false
+            event
         );
 
     } else {
@@ -370,15 +375,7 @@ static int magic_key_binding_released(
         ret = invoke_binding_list(
             cfg->fallback_bindings,
             cfg->fallback_bindings_len,
-            event,
-            true
-        );
-
-        invoke_binding_list(
-            cfg->fallback_bindings,
-            cfg->fallback_bindings_len,
-            event,
-            false
+            event
         );
     }
 
